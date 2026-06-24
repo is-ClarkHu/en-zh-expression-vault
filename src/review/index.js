@@ -5,6 +5,7 @@
 // saved expression again at the moment you'd reach for it.)
 
 import { getExpressions, getTags, getExpressionsByTag } from "../db/index.js";
+import { speakButton, speak } from "../audio/tts.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -83,6 +84,7 @@ export async function mountReview(root) {
     const card = el("div", "review-card");
     const front = el("div", "review-card__front");
     front.append(el("span", "review-card__surface", expr.surface));
+    front.append(speakButton(expr.surface));
     if (expr.register) front.append(el("span", "candidate__register", expr.register));
     const hint = el("div", "review-card__hint", "tap to reveal");
 

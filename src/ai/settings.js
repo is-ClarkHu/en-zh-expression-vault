@@ -9,6 +9,8 @@ const DEFAULTS = {
   apiKeys: {}, // per-provider keys, local only: { claude, openai, deepseek, ... }
   models: {}, // optional per-provider model overrides
   dropboxAppKey: "", // Dropbox app key (client id) for sync — not a secret (PKCE)
+  ttsVoice: "", // chosen Web Speech voice name ("" = auto-pick an en-US voice)
+  ttsRate: 1, // speech rate 0.5–1.5
 };
 
 export function getSettings() {

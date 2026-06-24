@@ -8,6 +8,7 @@
 // layer / recluster.py produce later.
 
 import { getExpressions, getTags, getExpressionsByTag } from "../db/index.js";
+import { speakButton } from "../audio/tts.js";
 
 const REGISTERS = ["slang", "casual", "neutral", "formal", "academic", "technical"];
 
@@ -30,6 +31,7 @@ function resultCard(expr) {
   const card = el("div", "candidate");
   const head = el("div", "candidate__head");
   head.append(el("span", "candidate__surface", expr.surface));
+  head.append(speakButton(expr.surface));
   if (expr.register) head.append(el("span", "candidate__register", expr.register));
   if (expr.sense_key) head.append(el("span", "candidate__sense", expr.sense_key));
   card.append(head);

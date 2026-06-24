@@ -8,6 +8,7 @@ import { getSettings, setSetting } from "../ai/settings.js";
 import { PROVIDERS } from "../ai/provider.js";
 import { quickLookup, askAndExtract } from "../ai/candidate.js";
 import { getExpressions, saveExpression, deleteExpression } from "../db/index.js";
+import { speakButton } from "../audio/tts.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -29,6 +30,7 @@ function candidateCard(candidate, onSave) {
   const card = el("div", "candidate");
   const head = el("div", "candidate__head");
   head.append(el("span", "candidate__surface", candidate.surface));
+  head.append(speakButton(candidate.surface));
   head.append(el("span", "candidate__register", candidate.register));
   if (candidate.sense_key) head.append(el("span", "candidate__sense", candidate.sense_key));
   card.append(head);
@@ -111,6 +113,7 @@ export function mountCapture(root) {
       const item = el("div", "vault__item");
       const main = el("div");
       main.append(el("span", "vault__surface", r.surface));
+      main.append(speakButton(r.surface));
       if (r.gloss_cn) main.append(el("span", "vault__gloss", r.gloss_cn));
       if (r.intents?.length) main.append(tagRow(null, r.intents));
       item.append(main);

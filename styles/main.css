@@ -234,6 +234,17 @@ textarea { resize: vertical; }
   border-color: var(--border);
   padding: 0.25rem 0.55rem;
 }
+.btn--speak {
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0 0.15rem;
+  opacity: 0.65;
+}
+.btn--speak:hover { opacity: 1; }
+.btn--speak:disabled { opacity: 0.25; cursor: default; }
 
 /* --- candidate card --- */
 .candidate {

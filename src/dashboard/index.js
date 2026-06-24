@@ -6,6 +6,7 @@
 import { getExpressions, getTags, getEdges, exportVault, importVault } from "../db/index.js";
 import { getSettings, setSetting } from "../ai/settings.js";
 import { isConnected, beginAuth, disconnect, syncNow, redirectUri } from "../sync/dropbox.js";
+import { enUSVoices, speak, isSupported as ttsSupported } from "../audio/tts.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -141,11 +142,54 @@ function dropboxBar(root) {
   return wrap;
 }
 
+// Pronunciation voice picker (SPEC §8) — choose among the OS's en-US voices.
+async function pronunciationBar() {
+  const wrap = el("div", "sync-bar");
+  wrap.append(el("span", "sync-bar__label", "Voice"));
+  if (!ttsSupported()) {
+    wrap.append(el("span", "muted", "Speech synthesis not available in this browser."));
+    return wrap;
+  }
+  const s = getSettings();
+  const select = el("select");
+  const voices = await enUSVoices();
+  if (!voices.length) {
+    wrap.append(el("span", "muted", "No en-US voices found. Add one in System Settings → Spoken Content."));
+    return wrap;
+  }
+  const auto = el("option", null, "Auto (best en-US)");
+  auto.value = "";
+  select.append(auto);
+  for (const v of voices) {
+    const o = el("option", null, `${v.name}${v.localService ? "" : " (network)"}`);
+    o.value = v.name;
+    if (v.name === s.ttsVoice) o.selected = true;
+    select.append(o);
+  }
+  select.addEventListener("change", () => setSetting("ttsVoice", select.value));
+
+  const rate = el("input");
+  rate.type = "range";
+  rate.min = "0.6";
+  rate.max = "1.3";
+  rate.step = "0.05";
+  rate.value = String(s.ttsRate || 1);
+  rate.title = "Speed";
+  rate.addEventListener("change", () => setSetting("ttsRate", Number(rate.value)));
+
+  const test = el("button", "btn btn--ghost", "🔊 Test");
+  test.addEventListener("click", () => speak("get shredded"));
+
+  wrap.append(select, rate, test);
+  return wrap;
+}
+
 export async function mountDashboard(root) {
   root.innerHTML = "";
   root.append(el("p", "muted", "The shape of your vault — distributions, tag counts, growth."));
   root.append(dataBar(root));
   root.append(dropboxBar(root));
+  root.append(await pronunciationBar());
 
   const [expressions, topicTags, intentTags, edges] = await Promise.all([
     getExpressions(),

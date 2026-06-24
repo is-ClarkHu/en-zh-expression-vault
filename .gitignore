@@ -11,9 +11,10 @@ data/*
 !data/sample
 !data/sample/**
 
-# Embedding cache and pronunciation audio (regenerable, large) — SPEC §8.
-embeddings/
-audio/
+# Embedding cache and pronunciation audio caches (regenerable, large) — SPEC §8.
+# Root-anchored so they don't shadow source dirs like src/audio/.
+/embeddings/
+/audio/
 
 # --- Secrets ---
 .env
