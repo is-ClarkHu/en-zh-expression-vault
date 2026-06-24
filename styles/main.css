@@ -90,6 +90,26 @@ body {
 .results { display: grid; gap: 0.6rem; }
 .results__head { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
+/* --- review (casual browse) --- */
+.review__filter { margin: 0.75rem 0 1.25rem; }
+.review__stage { min-height: 9rem; display: grid; }
+.review-card {
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+}
+.review-card__front { display: flex; align-items: baseline; justify-content: center; gap: 0.6rem; }
+.review-card__surface { font-size: 1.6rem; font-weight: 650; }
+.review-card__hint { margin-top: 0.6rem; font-size: 0.78rem; color: var(--muted); }
+.review-card__back { display: none; margin-top: 1rem; text-align: left; }
+.review-card--revealed .review-card__back { display: block; }
+.review-card__back .tags { justify-content: flex-start; }
+.review-card__src { margin-top: 0.6rem; font-style: italic; color: var(--muted); font-size: 0.88rem; }
+.review__controls { margin-top: 1.25rem; display: flex; justify-content: center; }
+
 /* --- dashboard --- */
 .stats {
   display: grid;
