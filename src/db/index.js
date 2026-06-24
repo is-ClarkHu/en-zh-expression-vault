@@ -13,7 +13,10 @@
 // last-write-wins shape iCloud sync (§7) will build on.
 
 const DB_NAME = "expression-vault";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // v2 added the tombstones store (delete propagation for sync)
+// Keep deletion markers this long, then prune — by then every device has synced
+// past the deletion, so the tombstone is no longer needed to prevent resurrection.
+const TOMBSTONE_TTL = 90 * 86400 * 1000; // 90 days
 const LEGACY_KEY = "ev-vault"; // the temporary localStorage store we migrate from
 
 let dbPromise = null;
@@ -32,6 +35,11 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains("edges")) {
         db.createObjectStore("edges", { keyPath: "id" });
+      }
+      // Deletion markers {id, deleted_at}. Without these a delete on one device
+      // is silently undone by another device that still holds the record.
+      if (!db.objectStoreNames.contains("tombstones")) {
+        db.createObjectStore("tombstones", { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -160,13 +168,35 @@ export async function getExpressions() {
 
 export async function deleteExpression(id) {
   const db = await openDB();
-  const tx = db.transaction(["expressions", "tags"], "readwrite");
+  const tx = db.transaction(["expressions", "tags", "tombstones"], "readwrite");
   const expr = await reqP(tx.objectStore("expressions").get(id));
   if (expr) {
     tx.objectStore("expressions").delete(id);
     await indexTags(tx, expr, -1);
   }
+  tx.objectStore("tombstones").put({ id, deleted_at: Date.now() }); // so the delete syncs
   await txDone(tx);
+}
+
+export async function getTombstones() {
+  const db = await openDB();
+  return reqP(db.transaction("tombstones").objectStore("tombstones").getAll());
+}
+
+// Append a {q, a} exchange to a saved expression's qa_log (SPEC §4.6 deep-dive).
+// Bumps updated_at so the enriched card syncs.
+export async function appendQaLog(id, entry) {
+  const db = await openDB();
+  const tx = db.transaction("expressions", "readwrite");
+  const store = tx.objectStore("expressions");
+  const expr = await reqP(store.get(id));
+  if (expr) {
+    expr.qa_log = [...(expr.qa_log || []), entry];
+    expr.updated_at = Date.now();
+    store.put(expr);
+  }
+  await txDone(tx);
+  return expr;
 }
 
 export async function getTags(axis) {
@@ -197,24 +227,55 @@ export async function getEdges() {
 
 export async function exportVault() {
   const db = await openDB();
-  const [expressions, tags, edges] = await Promise.all([
+  const [expressions, tags, edges, tombstones] = await Promise.all([
     reqP(db.transaction("expressions").objectStore("expressions").getAll()),
     reqP(db.transaction("tags").objectStore("tags").getAll()),
     reqP(db.transaction("edges").objectStore("edges").getAll()),
+    reqP(db.transaction("tombstones").objectStore("tombstones").getAll()),
   ]);
-  return { version: 1, exported_at: Date.now(), expressions, tags, edges };
+  return { version: 1, exported_at: Date.now(), expressions, tags, edges, tombstones };
 }
 
-// Per-record last-write-wins merge by updated_at (SPEC §7 conflict rule).
+// Per-record last-write-wins merge (SPEC §7), across add / edit / delete: for
+// each id, the event with the greatest timestamp wins — an upsert's updated_at
+// vs a deletion's deleted_at. So adds union, the later edit of the same record
+// wins, and a delete propagates (and isn't resurrected by a stale copy).
+// Tags/edges are coarse-replaced from the incoming file (recluster regenerates
+// them; live re-save rebuilds the tag index).
 export async function importVault(data) {
   const db = await openDB();
-  const tx = db.transaction(["expressions", "tags", "edges"], "readwrite");
+  const tx = db.transaction(["expressions", "tags", "edges", "tombstones"], "readwrite");
+  const exprStore = tx.objectStore("expressions");
+  const tombStore = tx.objectStore("tombstones");
+  const remoteTombs = new Map((data.tombstones || []).map((t) => [t.id, t.deleted_at || 0]));
+
   for (const expr of data.expressions || []) {
-    const store = tx.objectStore("expressions");
-    const cur = await reqP(store.get(expr.id));
-    if (!cur || (expr.updated_at || 0) >= (cur.updated_at || 0)) store.put(expr);
+    const t = expr.updated_at || 0;
+    const localTomb = await reqP(tombStore.get(expr.id));
+    const delT = Math.max(localTomb?.deleted_at || 0, remoteTombs.get(expr.id) || 0);
+    if (delT > t) continue; // a deletion is newer — don't resurrect
+    const cur = await reqP(exprStore.get(expr.id));
+    if (!cur || t >= (cur.updated_at || 0)) {
+      exprStore.put(expr);
+      if (localTomb) tombStore.delete(expr.id); // record came back; clear stale tombstone
+    }
   }
+
+  for (const [id, delT] of remoteTombs) {
+    const cur = await reqP(exprStore.get(id));
+    if (cur && (cur.updated_at || 0) > delT) continue; // a local edit is newer — keep it
+    if (cur) exprStore.delete(id);
+    const localTomb = await reqP(tombStore.get(id));
+    if (!localTomb || delT >= localTomb.deleted_at) tombStore.put({ id, deleted_at: delT });
+  }
+
   for (const tag of data.tags || []) tx.objectStore("tags").put(tag);
   for (const edge of data.edges || []) tx.objectStore("edges").put(edge);
+
+  // Prune deletion markers past the retention window so they don't grow forever.
+  const cutoff = Date.now() - TOMBSTONE_TTL;
+  for (const tb of await reqP(tombStore.getAll())) {
+    if ((tb.deleted_at || 0) < cutoff) tombStore.delete(tb.id);
+  }
   await txDone(tx);
 }

@@ -266,6 +266,15 @@ textarea { resize: vertical; }
 .candidate__gloss { margin-top: 0.35rem; }
 .candidate__intent { margin-top: 0.2rem; font-size: 0.88rem; color: var(--muted); }
 
+/* --- deep-dive (§4.6) --- */
+.deepdive { margin-top: 0.6rem; border-top: 1px dashed var(--border); padding-top: 0.5rem; }
+.deepdive__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; }
+.deepdive__label { font-size: 0.72rem; color: var(--muted); margin-right: 0.15rem; }
+.deepdive__log { display: grid; gap: 0.5rem; margin-top: 0.5rem; }
+.deepdive__entry { border-left: 2px solid var(--border); padding-left: 0.6rem; }
+.deepdive__q { font-size: 0.78rem; color: var(--muted); }
+.deepdive__a { font-size: 0.9rem; white-space: pre-wrap; }
+
 /* --- tags --- */
 .tags { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.4rem; }
 .tags__label { font-size: 0.72rem; color: var(--muted); margin-right: 0.15rem; }

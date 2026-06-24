@@ -76,11 +76,15 @@ export async function quickLookup(term) {
   return { candidates: normalize(data.candidates, term) };
 }
 
-// Entry B — Q&A (§3.2). Returns { answer, candidates }.
+// Entry B — Q&A (§3.2). Returns { answer, candidates }. Each candidate carries
+// the originating exchange as qa_log (SPEC §2.1) so it travels with the saved
+// card for deep-dives and re-encounters.
 export async function askAndExtract(input, ask) {
   const data = await callJSON(askExtractPrompt(input, ask));
+  const answer = typeof data.answer === "string" ? data.answer : "";
+  const qa = { q: ask || input, a: answer };
   return {
-    answer: typeof data.answer === "string" ? data.answer : "",
-    candidates: normalize(data.candidates, input),
+    answer,
+    candidates: normalize(data.candidates, input).map((c) => ({ ...c, qa_log: [qa] })),
   };
 }

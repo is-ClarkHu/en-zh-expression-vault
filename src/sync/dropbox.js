@@ -117,36 +117,76 @@ async function accessToken() {
 }
 
 // --- file I/O ----------------------------------------------------------------
+// download returns { data, rev }: rev is the file's version, carried back to
+// upload so we can detect a concurrent write (read-modify-write race).
 async function download() {
   const res = await fetch("https://content.dropboxapi.com/2/files/download", {
     method: "POST",
     headers: { authorization: `Bearer ${await accessToken()}`, "Dropbox-API-Arg": JSON.stringify({ path: VAULT_PATH }) },
   });
-  if (res.status === 409) return null; // file not there yet
+  if (res.status === 409) return { data: null, rev: null }; // file not there yet
   if (!res.ok) throw new Error("Dropbox download failed: " + (await res.text()));
-  return JSON.parse(await res.text());
+  const meta = JSON.parse(res.headers.get("dropbox-api-result") || "{}");
+  return { data: JSON.parse(await res.text()), rev: meta.rev || null };
 }
 
-async function upload(obj) {
+// With a rev, write only if the remote still matches it (mode "update"); a
+// mismatch means another device wrote in between → 409, surfaced as e.conflict.
+// Without a rev (no remote file yet) we plain-overwrite to create.
+async function upload(obj, rev) {
+  const mode = rev ? { ".tag": "update", update: rev } : { ".tag": "overwrite" };
   const res = await fetch("https://content.dropboxapi.com/2/files/upload", {
     method: "POST",
     headers: {
       authorization: `Bearer ${await accessToken()}`,
-      "Dropbox-API-Arg": JSON.stringify({ path: VAULT_PATH, mode: "overwrite", mute: true }),
+      "Dropbox-API-Arg": JSON.stringify({ path: VAULT_PATH, mode, mute: true }),
       "content-type": "application/octet-stream",
     },
     body: JSON.stringify(obj),
   });
+  if (res.status === 409) {
+    const e = new Error("Dropbox write conflict (the file changed during sync).");
+    e.conflict = true;
+    throw e;
+  }
   if (!res.ok) throw new Error("Dropbox upload failed: " + (await res.text()));
 }
 
-// Two-way sync: pull remote → merge into local (per-record last-write-wins by
-// updated_at, SPEC §7) → push the merged local back. Expressions merge cleanly;
-// tags/edges are coarse-merged (recluster.py regenerates them anyway).
+// Two-way sync: pull remote → merge into local (per-record add/edit/delete
+// last-write-wins, SPEC §7) → push the merged local back, only if the remote
+// rev is unchanged. If a concurrent write bumped the rev, re-pull/merge/push
+// once. Tags/edges are coarse-merged (recluster.py regenerates them anyway).
 export async function syncNow() {
-  const remote = await download();
-  if (remote) await importVault(remote);
-  const merged = await exportVault();
-  await upload(merged);
-  return { expressions: merged.expressions.length, hadRemote: !!remote };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data, rev } = await download();
+    if (data) await importVault(data);
+    const merged = await exportVault();
+    try {
+      await upload(merged, rev);
+      return { expressions: merged.expressions.length, hadRemote: !!data };
+    } catch (e) {
+      if (e.conflict && attempt === 0) continue; // raced — re-pull and retry once
+      throw e;
+    }
+  }
+  throw new Error("Sync kept conflicting — please try again.");
+}
+
+// Pull + merge only (no push) — for app load, so you open to the latest.
+export async function pullMerge() {
+  if (!isConnected()) return false;
+  const { data } = await download();
+  if (data) await importVault(data);
+  return !!data;
+}
+
+// Debounced full sync after a local change (save/delete), so edits propagate
+// without pressing "Sync now". Coalesces bursts; silent on failure.
+let pushTimer = null;
+export function schedulePush(delay = 4000) {
+  if (!isConnected()) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    syncNow().catch(() => {});
+  }, delay);
 }

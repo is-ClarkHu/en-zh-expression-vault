@@ -9,6 +9,7 @@
 
 import { getExpressions, getTags, getExpressionsByTag } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
+import { deepDiveControl } from "../ui/deepdive.js";
 
 const REGISTERS = ["slang", "casual", "neutral", "formal", "academic", "technical"];
 
@@ -40,6 +41,7 @@ function resultCard(expr) {
   if (expr.intent_cn) card.append(el("div", "candidate__intent", `意图：${expr.intent_cn}`));
   if (expr.topics?.length) card.append(tagRow("topics", expr.topics));
   if (expr.intents?.length) card.append(tagRow("intents", expr.intents));
+  card.append(deepDiveControl(expr, { persist: true }));
   return card;
 }
 

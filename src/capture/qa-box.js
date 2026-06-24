@@ -9,6 +9,7 @@ import { PROVIDERS } from "../ai/provider.js";
 import { quickLookup, askAndExtract } from "../ai/candidate.js";
 import { getExpressions, saveExpression, deleteExpression } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
+import { schedulePush } from "../sync/dropbox.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -47,6 +48,7 @@ function candidateCard(candidate, onSave) {
     try {
       await saveExpression(candidate);
       save.textContent = "Saved ✓";
+      schedulePush(); // auto-sync if Dropbox connected
       await onSave?.();
     } catch (e) {
       save.disabled = false;
@@ -121,6 +123,7 @@ export function mountCapture(root) {
       del.title = "Delete";
       del.addEventListener("click", async () => {
         await deleteExpression(r.id);
+        schedulePush(); // propagate the delete (tombstone) if connected
         refreshVault();
       });
       item.append(del);

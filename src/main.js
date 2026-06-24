@@ -9,7 +9,7 @@ import { mountRetrieve } from "./retrieve/index.js";
 import { mountGraph } from "./retrieve/graph.js";
 import { mountReview } from "./review/index.js";
 import { mountDashboard } from "./dashboard/index.js";
-import { completeAuthFromRedirect } from "./sync/dropbox.js";
+import { completeAuthFromRedirect, isConnected, pullMerge, syncNow } from "./sync/dropbox.js";
 
 const app = document.querySelector("#app");
 app.innerHTML = `
@@ -46,14 +46,22 @@ for (const v of VIEWS) {
   nav.append(b);
 }
 
-// If we returned from a Dropbox OAuth redirect, finish the handshake first, then
-// land on Dashboard (where the sync controls live); otherwise start on Capture.
+// If we returned from a Dropbox OAuth redirect, finish the handshake; then
+// auto-sync (full round-trip on a fresh connect, pull-merge otherwise) so you
+// open to the latest. Background sync failures are non-fatal — the app still
+// works offline against local data.
 async function init() {
   let justConnected = false;
   try {
     justConnected = await completeAuthFromRedirect();
   } catch (e) {
     alert(`Dropbox connect failed: ${e.message}`);
+  }
+  try {
+    if (justConnected) await syncNow();
+    else if (isConnected()) await pullMerge();
+  } catch {
+    /* offline / transient — proceed with local data */
   }
   show(justConnected ? "dashboard" : "capture");
 }

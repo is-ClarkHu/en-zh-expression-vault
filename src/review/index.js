@@ -6,6 +6,7 @@
 
 import { getExpressions, getTags, getExpressionsByTag } from "../db/index.js";
 import { speakButton, speak } from "../audio/tts.js";
+import { deepDiveControl } from "../ui/deepdive.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -96,6 +97,7 @@ export async function mountReview(root) {
     if (expr.topics?.length) back.append(tagRow("topics", expr.topics));
     if (expr.intents?.length) back.append(tagRow("intents", expr.intents));
     if (expr.example_src) back.append(el("div", "review-card__src", `"${expr.example_src}"`));
+    back.append(deepDiveControl(expr, { persist: true }));
 
     card.append(front, hint, back);
     card.addEventListener("click", () => {
