@@ -1,0 +1,20 @@
+{
+  "name": "en-zh-expression-vault",
+  "productName": "Expression Vault",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A private, topic-and-intent-organized vault of English expressions, fed by quick-lookup and Q&A capture.",
+  "author": "Jiahe Hu",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:standalone": "vite build --mode standalone",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

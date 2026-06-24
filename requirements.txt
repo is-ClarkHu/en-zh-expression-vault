@@ -1,0 +1,19 @@
+# Python dependencies for tools/recluster.py — the ONLY batch step (SPEC §5, §9).
+# Self-contained: create a project-local venv and install these.
+# The app itself is a web frontend and does NOT depend on any of this.
+#
+#   python3 -m venv venv && source venv/bin/activate
+#   pip install -r requirements.txt
+#
+# recluster.py does periodic TAG-system cleanup, not per-word work:
+#   - embed each tag (centroid of members / name + samples)
+#   - merge overlapping tags; split overloaded ones (HDBSCAN on a tag's members)
+#   - auto-name changed tags (LLM) + refresh similarity/antonym edges
+
+numpy>=1.26            # vector math for tag centroids / similarity
+scikit-learn>=1.4      # cosine similarity, clustering helpers
+hdbscan>=0.8.33        # density-based split detection on a tag's members (SPEC §5.2)
+
+# LLM auto-naming + AI-judged edges (progression/collocation) use the standard
+# library only (urllib) against whichever provider you pass with --provider, so
+# there are no extra deps. Put the provider key in .env (see .env.example).

@@ -1,0 +1,42 @@
+# --- Captured corpus (personal + copyrighted; NEVER commit) ---
+# Real chat logs, lookups, and Q&A exchanges stay on-device only (SPEC §7, §10).
+raw_capture/
+*.vault.json
+*.vault.sqlite
+*-vault-export-*.json
+
+# --- Generated / derived data (regenerable; not a runtime dependency) ---
+# Only the small public demo vault under data/sample/ is committed.
+data/*
+!data/sample
+!data/sample/**
+
+# Embedding cache and pronunciation audio (regenerable, large) — SPEC §8.
+embeddings/
+audio/
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python (self-contained venv for tools/recluster.py) ---
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# --- Node / build output ---
+node_modules/
+dist/
+dist-standalone/
+dist-electron/
+release/
+
+# --- Design doc (kept local, not published) — SPEC §10 ---
+docs/SPEC-expression-vault.md
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
