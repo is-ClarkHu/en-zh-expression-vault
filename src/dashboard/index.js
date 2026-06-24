@@ -4,6 +4,8 @@
 // is producing a healthy organization layer.
 
 import { getExpressions, getTags, getEdges, exportVault, importVault } from "../db/index.js";
+import { getSettings, setSetting } from "../ai/settings.js";
+import { isConnected, beginAuth, disconnect, syncNow, redirectUri } from "../sync/dropbox.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -86,10 +88,64 @@ function dataBar(root) {
   return bar;
 }
 
+// Dropbox auto-sync (SPEC §7). Connect once (PKCE), then "Sync now" does a full
+// two-way last-write-wins round-trip. Manual export/import above stays as the
+// universal fallback.
+function dropboxBar(root) {
+  const wrap = el("div", "sync-bar");
+
+  if (!isConnected()) {
+    const key = el("input", "sync-bar__key");
+    key.type = "password";
+    key.placeholder = "Dropbox app key";
+    key.value = getSettings().dropboxAppKey || "";
+    key.addEventListener("change", () => setSetting("dropboxAppKey", key.value.trim()));
+
+    const connect = el("button", "btn", "Connect Dropbox");
+    connect.addEventListener("click", async () => {
+      setSetting("dropboxAppKey", key.value.trim());
+      try {
+        await beginAuth();
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+    wrap.append(el("span", "sync-bar__label", "Sync"), key, connect);
+    // Tell the self-hoster exactly which redirect URI to register.
+    wrap.append(el("div", "sync-bar__hint muted", `Redirect URI to register in your Dropbox app: ${redirectUri()}`));
+    return wrap;
+  }
+
+  const status = el("span", "sync-bar__label", "Dropbox connected");
+  const sync = el("button", "btn", "Sync now");
+  sync.addEventListener("click", async () => {
+    sync.disabled = true;
+    const orig = sync.textContent;
+    sync.textContent = "Syncing…";
+    try {
+      const r = await syncNow();
+      sync.textContent = `Synced ✓ (${r.expressions})`;
+      mountDashboard(root); // refresh counts after merge
+    } catch (e) {
+      sync.disabled = false;
+      sync.textContent = orig;
+      alert(`Sync failed: ${e.message}`);
+    }
+  });
+  const off = el("button", "btn btn--ghost", "Disconnect");
+  off.addEventListener("click", () => {
+    disconnect();
+    mountDashboard(root);
+  });
+  wrap.append(status, sync, off);
+  return wrap;
+}
+
 export async function mountDashboard(root) {
   root.innerHTML = "";
   root.append(el("p", "muted", "The shape of your vault — distributions, tag counts, growth."));
   root.append(dataBar(root));
+  root.append(dropboxBar(root));
 
   const [expressions, topicTags, intentTags, edges] = await Promise.all([
     getExpressions(),

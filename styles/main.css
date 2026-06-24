@@ -132,7 +132,21 @@ body {
 }
 
 /* --- dashboard --- */
-.data-bar { display: flex; gap: 0.5rem; margin: 0.5rem 0 1.25rem; }
+.data-bar { display: flex; gap: 0.5rem; margin: 0.5rem 0 0.75rem; }
+.sync-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.sync-bar__label { font-size: 0.85rem; color: var(--muted); }
+.sync-bar__key { flex: 1; min-width: 12rem; }
+.sync-bar__hint { flex-basis: 100%; font-size: 0.78rem; word-break: break-all; }
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

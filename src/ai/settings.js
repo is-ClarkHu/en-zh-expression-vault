@@ -8,6 +8,7 @@ const DEFAULTS = {
   provider: "claude", // which LLM powers ask / quick-lookup
   apiKeys: {}, // per-provider keys, local only: { claude, openai, deepseek, ... }
   models: {}, // optional per-provider model overrides
+  dropboxAppKey: "", // Dropbox app key (client id) for sync — not a secret (PKCE)
 };
 
 export function getSettings() {

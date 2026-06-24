@@ -9,6 +9,7 @@ import { mountRetrieve } from "./retrieve/index.js";
 import { mountGraph } from "./retrieve/graph.js";
 import { mountReview } from "./review/index.js";
 import { mountDashboard } from "./dashboard/index.js";
+import { completeAuthFromRedirect } from "./sync/dropbox.js";
 
 const app = document.querySelector("#app");
 app.innerHTML = `
@@ -45,4 +46,16 @@ for (const v of VIEWS) {
   nav.append(b);
 }
 
-show("capture");
+// If we returned from a Dropbox OAuth redirect, finish the handshake first, then
+// land on Dashboard (where the sync controls live); otherwise start on Capture.
+async function init() {
+  let justConnected = false;
+  try {
+    justConnected = await completeAuthFromRedirect();
+  } catch (e) {
+    alert(`Dropbox connect failed: ${e.message}`);
+  }
+  show(justConnected ? "dashboard" : "capture");
+}
+
+init();
