@@ -3,7 +3,7 @@
 // Pure reads over the db; doubles as a sanity check that capture → live tagging
 // is producing a healthy organization layer.
 
-import { getExpressions, getTags, getEdges } from "../db/index.js";
+import { getExpressions, getTags, getEdges, exportVault, importVault } from "../db/index.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -50,9 +50,46 @@ function section(title, node) {
 
 const REGISTERS = ["slang", "casual", "neutral", "formal", "academic", "technical"];
 
+// Single-file vault export/import (SPEC §7) — the seam recluster.py plugs into:
+// download JSON → run tools/recluster.py → import it back (last-write-wins merge).
+function dataBar(root) {
+  const bar = el("div", "data-bar");
+
+  const exp = el("button", "btn btn--ghost", "Export vault");
+  exp.addEventListener("click", async () => {
+    const blob = new Blob([JSON.stringify(await exportVault(), null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `vault-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  const file = el("input");
+  file.type = "file";
+  file.accept = "application/json";
+  file.style.display = "none";
+  const imp = el("button", "btn btn--ghost", "Import vault");
+  imp.addEventListener("click", () => file.click());
+  file.addEventListener("change", async () => {
+    const f = file.files?.[0];
+    if (!f) return;
+    try {
+      await importVault(JSON.parse(await f.text()));
+      mountDashboard(root); // re-render with merged data
+    } catch (e) {
+      alert(`Import failed: ${e.message}`);
+    }
+  });
+
+  bar.append(exp, imp, file);
+  return bar;
+}
+
 export async function mountDashboard(root) {
   root.innerHTML = "";
   root.append(el("p", "muted", "The shape of your vault — distributions, tag counts, growth."));
+  root.append(dataBar(root));
 
   const [expressions, topicTags, intentTags, edges] = await Promise.all([
     getExpressions(),
