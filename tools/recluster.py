@@ -267,8 +267,11 @@ def main():
     p.add_argument("--embed-model", default="text-embedding-3-small", help="OpenAI embedding model.")
     p.add_argument("--llm-provider", default="deepseek", choices=list(LLM_ENDPOINTS))
     p.add_argument("--llm-model", default="deepseek-chat", help="Chat model for tag auto-naming.")
-    p.add_argument("--merge", type=float, default=0.92, help="Tag-merge cosine threshold.")
-    p.add_argument("--edge", type=float, default=0.82, help="Expression-edge cosine threshold.")
+    # Defaults calibrated for OpenAI text-embedding-3-small, whose cosines run
+    # low: same-topic ~0.5, a near-duplicate tag pair ~0.73, unrelated ~0.3.
+    # Retune if you switch embedding models.
+    p.add_argument("--merge", type=float, default=0.70, help="Tag-merge cosine threshold.")
+    p.add_argument("--edge", type=float, default=0.55, help="Expression-edge cosine threshold.")
     p.add_argument("--min-split", type=int, default=8, help="Min members before a tag may split.")
     p.add_argument("--no-embed", action="store_true", help="Skip the embedding API call.")
     p.add_argument("--no-name", action="store_true", help="Skip LLM tag auto-naming.")
