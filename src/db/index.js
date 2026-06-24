@@ -186,6 +186,13 @@ export async function getExpressionsByTag(axis, name) {
   return rows.filter(Boolean);
 }
 
+// Knowledge-graph edges (§2.3). Empty until the AI layer / recluster.py
+// populate them; exposed now so the dashboard can report the count.
+export async function getEdges() {
+  const db = await openDB();
+  return reqP(db.transaction("edges").objectStore("edges").getAll());
+}
+
 // --- single-file sync shape (§7) ---------------------------------------
 
 export async function exportVault() {

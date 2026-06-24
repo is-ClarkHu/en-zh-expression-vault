@@ -90,6 +90,31 @@ body {
 .results { display: grid; gap: 0.6rem; }
 .results__head { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
+/* --- dashboard --- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+  margin: 0.75rem 0 1.5rem;
+}
+@media (max-width: 560px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem;
+  text-align: center;
+}
+.stat__value { font-size: 1.5rem; font-weight: 650; }
+.stat__label { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+.dash__section { margin-bottom: 1.5rem; }
+.bars { display: grid; gap: 0.35rem; }
+.bar { display: grid; grid-template-columns: 7rem 1fr 2rem; align-items: center; gap: 0.5rem; }
+.bar__name { font-size: 0.85rem; }
+.bar__track { background: var(--tag-bg); border-radius: 999px; height: 0.7rem; overflow: hidden; }
+.bar__fill { background: var(--accent); height: 100%; }
+.bar__count { font-size: 0.8rem; color: var(--muted); text-align: right; }
+
 h2 { font-size: 1.1rem; margin: 0 0 0.5rem; }
 .muted { color: var(--muted); font-size: 0.9rem; }
 .error { color: var(--error); font-size: 0.9rem; }

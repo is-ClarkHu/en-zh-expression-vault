@@ -6,6 +6,7 @@
 
 import { mountCapture } from "./capture/qa-box.js";
 import { mountRetrieve } from "./retrieve/index.js";
+import { mountDashboard } from "./dashboard/index.js";
 
 const app = document.querySelector("#app");
 app.innerHTML = `
@@ -22,6 +23,7 @@ const nav = app.querySelector(".app__nav");
 const VIEWS = [
   { id: "capture", label: "Capture", mount: mountCapture },
   { id: "retrieve", label: "Retrieve", mount: mountRetrieve },
+  { id: "dashboard", label: "Dashboard", mount: mountDashboard },
 ];
 
 function show(id) {
