@@ -40,8 +40,55 @@ body {
   padding: 2rem 1.25rem 4rem;
 }
 
-.shell__header h1 { margin: 0 0 0.25rem; font-size: 1.75rem; }
+/* --- app shell / nav --- */
+.app__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.app__header h1 { margin: 0; font-size: 1.6rem; }
+.app__nav { display: flex; gap: 0.4rem; }
+.app__tab {
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+}
+.app__tab--on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 .tagline { margin: 0 0 1.5rem; color: var(--muted); font-size: 0.95rem; }
+
+/* --- retrieve --- */
+.axis-bar { display: flex; gap: 0.4rem; margin: 0.75rem 0 1rem; flex-wrap: wrap; }
+.axis-tab {
+  font: inherit;
+  cursor: pointer;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.35rem 0.8rem;
+}
+.axis-tab--on { border-color: var(--accent); color: var(--accent); }
+.chips { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.chip {
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  background: var(--tag-bg);
+  color: var(--tag-fg);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+}
+.chip--on { border-color: var(--accent); }
+.results { display: grid; gap: 0.6rem; }
+.results__head { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
 h2 { font-size: 1.1rem; margin: 0 0 0.5rem; }
 .muted { color: var(--muted); font-size: 0.9rem; }

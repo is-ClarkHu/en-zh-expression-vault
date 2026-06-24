@@ -58,10 +58,7 @@ function candidateCard(candidate, onSave) {
 export function mountCapture(root) {
   root.innerHTML = "";
 
-  const header = el("header", "shell__header");
-  header.append(el("h1", null, "Expression Vault"));
-  header.append(el("p", "tagline", "Capture loop (validation slice) — quick-lookup + Q&A → candidate card → Save."));
-  root.append(header);
+  root.append(el("p", "muted", "Capture — quick-lookup or ask, then Save the cards worth keeping."));
 
   // --- Settings bar: provider + key (local only) ---
   const s = getSettings();

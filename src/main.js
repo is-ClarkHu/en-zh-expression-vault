@@ -1,16 +1,42 @@
-// Expression Vault — app entry point.
+// Expression Vault — app entry point + view shell.
 //
-// Current build = the AI-loop validation slice (SPEC §10 best-next-step):
-// capture (quick-lookup + Q&A) → live AI candidate card → Save → vault list.
-// Remaining modules land on top per SPEC §9:
-//   ai/       answer + extract + disambiguate + auto-tag  (§4)   ← live
-//   capture/  quick-lookup box + Q&A box                  (§3)   ← live
-//   db/       real expression/tags/edges store, sync-friendly (§2) — temp store for now
-//   retrieve/ intent reverse-search + topic/register filter + 2D graph (§6.1)
-//   review/   light re-encounter + casual browse, no SRS  (§6.2)
-//   dashboard/ topic/intent/register distribution         (§6.3)
-//   sync/     iCloud single-file sync                      (§7)
+// Live modules (SPEC §9): capture (§3) → ai candidate card (§4) → db vault (§2)
+// → retrieve (§6.1). Remaining: 2D graph (needs embeddings/edges), review (§6.2),
+// dashboard (§6.3), recluster.py (§5), iCloud sync (§7).
 
 import { mountCapture } from "./capture/qa-box.js";
+import { mountRetrieve } from "./retrieve/index.js";
 
-mountCapture(document.querySelector("#app"));
+const app = document.querySelector("#app");
+app.innerHTML = `
+  <header class="app__header">
+    <h1>Expression Vault</h1>
+    <nav class="app__nav"></nav>
+  </header>
+  <main id="view"></main>
+`;
+
+const view = app.querySelector("#view");
+const nav = app.querySelector(".app__nav");
+
+const VIEWS = [
+  { id: "capture", label: "Capture", mount: mountCapture },
+  { id: "retrieve", label: "Retrieve", mount: mountRetrieve },
+];
+
+function show(id) {
+  const v = VIEWS.find((x) => x.id === id) || VIEWS[0];
+  for (const b of nav.children) b.classList.toggle("app__tab--on", b.dataset.id === v.id);
+  v.mount(view);
+}
+
+for (const v of VIEWS) {
+  const b = document.createElement("button");
+  b.className = "app__tab";
+  b.textContent = v.label;
+  b.dataset.id = v.id;
+  b.addEventListener("click", () => show(v.id));
+  nav.append(b);
+}
+
+show("capture");
