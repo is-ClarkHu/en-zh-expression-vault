@@ -13,6 +13,7 @@
 // (Anthropic output_config, OpenAI response_format) can be layered on later.
 
 import { getSettings } from "./settings.js";
+import { getCached, setCached } from "../db/index.js";
 
 export const PROVIDERS = [
   { id: "claude", label: "Claude", defaultModel: "claude-opus-4-8" },
@@ -92,15 +93,23 @@ async function callProvider(pid, key, model, prompt, { system, maxTokens = 1024 
   return (data?.choices?.[0]?.message?.content || "").trim();
 }
 
-// Resolve the active provider config and run one text completion.
+// Resolve the active provider config and run one text completion. Identical
+// (provider, model, system, prompt) calls are served from the local cache so a
+// repeated lookup / ask / deep-dive doesn't re-bill the user's key (SPEC §10).
 export async function callText(prompt, opts = {}) {
   const s = getSettings();
   const pid = s.provider || "claude";
   const key = (s.apiKeys && s.apiKeys[pid]) || "";
   if (!key) throw new Error("NO_KEY");
   const model = (s.models && s.models[pid]) || providerMeta(pid).defaultModel;
+
+  const cacheKey = `${pid}:${model}:${opts.system || ""}:${prompt}`;
+  const cached = await getCached(cacheKey);
+  if (cached != null) return cached;
+
   const text = await callProvider(pid, key, model, prompt, opts);
   if (!text) throw new Error("Empty response");
+  await setCached(cacheKey, text);
   return text;
 }
 

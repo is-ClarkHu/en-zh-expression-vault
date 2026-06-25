@@ -13,7 +13,7 @@
 // last-write-wins shape iCloud sync (§7) will build on.
 
 const DB_NAME = "expression-vault";
-const DB_VERSION = 2; // v2 added the tombstones store (delete propagation for sync)
+const DB_VERSION = 3; // v2: tombstones (sync deletes). v3: ai_cache (don't re-bill identical AI calls)
 // Keep deletion markers this long, then prune — by then every device has synced
 // past the deletion, so the tombstone is no longer needed to prevent resurrection.
 const TOMBSTONE_TTL = 90 * 86400 * 1000; // 90 days
@@ -40,6 +40,11 @@ function openDB() {
       // is silently undone by another device that still holds the record.
       if (!db.objectStoreNames.contains("tombstones")) {
         db.createObjectStore("tombstones", { keyPath: "id" });
+      }
+      // Cache of AI responses keyed by provider+model+prompt, so repeating a
+      // lookup / ask / deep-dive doesn't re-bill the user's key (SPEC §10).
+      if (!db.objectStoreNames.contains("ai_cache")) {
+        db.createObjectStore("ai_cache", { keyPath: "key" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -197,6 +202,22 @@ export async function appendQaLog(id, entry) {
   }
   await txDone(tx);
   return expr;
+}
+
+// AI response cache (SPEC §10). Keyed by provider+model+prompt; values are the
+// raw completion text. Lives in the vault DB but is excluded from export/import
+// (it's a regenerable local cache, not vault data).
+export async function getCached(key) {
+  const db = await openDB();
+  const row = await reqP(db.transaction("ai_cache").objectStore("ai_cache").get(key));
+  return row ? row.value : null;
+}
+
+export async function setCached(key, value) {
+  const db = await openDB();
+  const tx = db.transaction("ai_cache", "readwrite");
+  tx.objectStore("ai_cache").put({ key, value, created_at: Date.now() });
+  await txDone(tx);
 }
 
 export async function getTags(axis) {
