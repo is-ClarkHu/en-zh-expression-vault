@@ -11,6 +11,11 @@ export default defineConfig(({ mode }) => {
   const standalone = mode === "standalone";
   return {
     base: "./",
+    // Pin the dev port so the origin (and thus the Dropbox OAuth redirect URI)
+    // stays stable. strictPort fails loudly if 5173 is taken instead of silently
+    // drifting to 5174 — which would change the IndexedDB origin and break the
+    // registered redirect URI.
+    server: { port: 5173, strictPort: true },
     plugins: standalone ? [viteSingleFile()] : [],
     build: {
       outDir: standalone ? "dist-standalone" : "dist",
