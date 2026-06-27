@@ -177,7 +177,7 @@ async function pronunciationBar() {
   rate.title = "Speed";
   rate.addEventListener("change", () => setSetting("ttsRate", Number(rate.value)));
 
-  const test = el("button", "btn btn--ghost", "🔊 Test");
+  const test = el("button", "btn btn--ghost", "Test voice");
   test.addEventListener("click", () => speak("get shredded"));
 
   wrap.append(select, rate, test);

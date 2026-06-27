@@ -5,6 +5,7 @@
 
 import { DEEP_DIVE_KINDS, deepDive } from "../ai/deepdive.js";
 import { appendQaLog } from "../db/index.js";
+import { renderMarkdownInto } from "./markdown.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -22,7 +23,9 @@ export function deepDiveControl(expr, { persist = true } = {}) {
     for (const e of expr.qa_log || []) {
       const item = el("div", "deepdive__entry");
       item.append(el("div", "deepdive__q", e.q));
-      item.append(el("div", "deepdive__a", e.a));
+      // AI answers come back as Markdown (tables, lists, bold) — render, don't
+      // dump literal pipes/asterisks (SPEC v2 §3).
+      item.append(renderMarkdownInto(el("div", "deepdive__a"), e.a));
       log.append(item);
     }
   };

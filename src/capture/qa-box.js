@@ -10,6 +10,7 @@ import { quickLookup, askAndExtract } from "../ai/candidate.js";
 import { getExpressions, saveExpression, deleteExpression } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
 import { schedulePush } from "../sync/dropbox.js";
+import { renderMarkdownInto } from "../ui/markdown.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -225,7 +226,7 @@ function qaEntry(onSave) {
       if (answer) {
         const a = el("div", "answer");
         a.append(el("div", "answer__label", "Answer"));
-        a.append(el("div", "answer__body", answer));
+        a.append(renderMarkdownInto(el("div", "answer__body"), answer));
         nodes.push(a);
       }
       if (candidates.length) {

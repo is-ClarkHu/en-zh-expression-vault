@@ -56,14 +56,19 @@ export async function speak(text) {
   speechSynthesis.speak(u);
 }
 
-// A small 🔊 button that speaks `text`. Stops click propagation so it works
+// A small speaker button that speaks `text`. Stops click propagation so it works
 // inside clickable cards (e.g. the review flip card) without triggering them.
+// Line-style SVG glyph (SPEC v2 §9: no emoji).
+const SPEAKER_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></svg>';
+
 export function speakButton(text) {
   const b = document.createElement("button");
   b.className = "btn--speak";
   b.type = "button";
-  b.textContent = "🔊";
+  b.innerHTML = SPEAKER_SVG;
   b.title = "Pronounce";
+  b.setAttribute("aria-label", "Pronounce");
   if (!isSupported()) b.disabled = true;
   b.addEventListener("click", (e) => {
     e.stopPropagation();

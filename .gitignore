@@ -34,8 +34,10 @@ dist-standalone/
 dist-electron/
 release/
 
-# --- Design doc (kept local, not published) — SPEC §10 ---
-docs/SPEC-expression-vault.md
+# --- Design docs (kept local, not published) — SPEC §10 ---
+# All SPEC-* iteration docs stay out of the public repo (v1, v2, …).
+docs/SPEC-*.md
+SPEC-*.md
 
 # --- OS / editor ---
 .DS_Store
