@@ -10,6 +10,8 @@ import { mountRetrieve } from "./retrieve/index.js";
 import { mountGraph } from "./retrieve/graph.js";
 import { mountReview } from "./review/index.js";
 import { mountDashboard } from "./dashboard/index.js";
+import { mountSettings } from "./settings/index.js";
+import { applyTheme } from "./ui/theme.js";
 import { completeAuthFromRedirect, isConnected, pullMerge, syncNow } from "./sync/dropbox.js";
 
 // Line-style nav glyphs (SPEC v2 §9: icon + label, no emoji). One 24×24 path
@@ -23,6 +25,8 @@ const ICONS = {
     '<rect x="3.5" y="7" width="13" height="13.5" rx="2.2"/><path d="M8 7V6a2 2 0 0 1 2-2h8.5a2 2 0 0 1 2 2v11.5a2 2 0 0 1-2 2H17"/>',
   dashboard:
     '<line x1="6" y1="20" x2="6" y2="12.5"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="18" y1="20" x2="18" y2="14.5"/>',
+  settings:
+    '<circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6L18 18M18 6l-1.4 1.4M7.4 16.6L6 18"/>',
 };
 const icon = (id) =>
   `<svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[id]}</svg>`;
@@ -57,6 +61,7 @@ const VIEWS = [
   { id: "graph", label: "Graph", mount: mountGraph },
   { id: "review", label: "Review", mount: mountReview },
   { id: "dashboard", label: "Dashboard", mount: mountDashboard },
+  { id: "settings", label: "Settings", mount: mountSettings },
 ];
 
 // Below the sidebar breakpoint the nav is an off-canvas drawer; opening it shows
@@ -99,6 +104,7 @@ for (const v of VIEWS) {
 // open to the latest. Background sync failures are non-fatal — the app still
 // works offline against local data.
 async function init() {
+  applyTheme(); // honour the saved appearance choice before first paint
   let justConnected = false;
   try {
     justConnected = await completeAuthFromRedirect();

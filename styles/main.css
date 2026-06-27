@@ -54,8 +54,11 @@
   --review-card-h: 20rem; /* fixed review card height — flip never resizes (v3 §2a) */
 }
 
+/* Dark tokens. Applied automatically in "auto" mode (no data-theme) when the OS
+   is dark, and unconditionally when the user forces dark via Settings (v3 §8).
+   Forcing light keeps the :root defaults by not matching either rule. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --paper: #1a1813; /* warm near-black ground */
     --surface: #221f18;
     --surface-lift: rgba(255, 255, 255, 0.022);
@@ -69,6 +72,24 @@
     --fill: #3a352a;
     --track: #2a261d;
   }
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #1a1813;
+  --surface: #221f18;
+  --surface-lift: rgba(255, 255, 255, 0.022);
+  --ink: #ece8dc;
+  --muted: #9a9583;
+  --hairline: rgba(255, 255, 255, 0.1);
+  --accent: #85a8cf;
+  --accent-ink: #181c22;
+  --accent-wash: rgba(133, 168, 207, 0.14);
+  --error: #d98b80;
+  --fill: #3a352a;
+  --track: #2a261d;
+}
+[data-theme="light"] {
+  color-scheme: light;
 }
 
 * {
@@ -401,6 +422,15 @@ input[type="radio"] {
 }
 .data-bar {
   margin: var(--s2) 0 var(--s3);
+}
+
+/* Settings page (v3 §8): titled groups, each holding a control bar. */
+.settings__group {
+  margin-bottom: var(--s6);
+  max-width: 920px;
+}
+.settings__group > h2 {
+  margin-bottom: var(--s2);
 }
 .settings-bar__label,
 .sync-bar__label {
@@ -1128,14 +1158,22 @@ input[type="radio"] {
   border-color: #3a7a52;
 }
 @media (prefers-color-scheme: dark) {
-  .reassign__badge--split {
+  :root:not([data-theme]) .reassign__badge--split {
     color: #d3a45f;
     border-color: #d3a45f;
   }
-  .reassign__badge--new {
+  :root:not([data-theme]) .reassign__badge--new {
     color: #74b88e;
     border-color: #74b88e;
   }
+}
+[data-theme="dark"] .reassign__badge--split {
+  color: #d3a45f;
+  border-color: #d3a45f;
+}
+[data-theme="dark"] .reassign__badge--new {
+  color: #74b88e;
+  border-color: #74b88e;
 }
 
 /* ============================================================ vault list */

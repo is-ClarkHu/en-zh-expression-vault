@@ -18,6 +18,9 @@ const DEFAULTS = {
   dropboxAppKey: "", // Dropbox app key (client id) for sync — not a secret (PKCE)
   ttsVoice: "", // chosen Web Speech voice name ("" = auto-pick an en-US voice)
   ttsRate: 1, // speech rate 0.5–1.5
+  theme: "auto", // appearance: "auto" follows the OS, else "light" / "dark" (v3 §8)
+  readingDefault: false, // whether review/retrieve start with the reading shown (v3 §8)
+  uiLang: "en", // UI language; English by default (v3 §4). Toggle reserved for later.
 };
 
 export function getSettings() {
