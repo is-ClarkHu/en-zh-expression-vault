@@ -107,6 +107,7 @@ function normalizeRow(c) {
     reading: c.reading ?? null,
     gloss_cn: c.gloss_cn ?? null,
     intent_cn: c.intent_cn ?? null,
+    note: c.note ?? null, // free-text user note (v3 §6), editable in the detail panel
     register: c.register ?? null,
     corpus: c.corpus ?? null,
     sense_key: c.sense_key ?? null,
@@ -199,6 +200,22 @@ export async function appendQaLog(id, entry) {
   const expr = await reqP(store.get(id));
   if (expr) {
     expr.qa_log = [...(expr.qa_log || []), entry];
+    expr.updated_at = Date.now();
+    store.put(expr);
+  }
+  await txDone(tx);
+  return expr;
+}
+
+// Set a card's free-text user note (SPEC v3 §6). null/empty clears it. Bumps
+// updated_at so the note travels with the card on sync.
+export async function setNote(id, note) {
+  const db = await openDB();
+  const tx = db.transaction("expressions", "readwrite");
+  const store = tx.objectStore("expressions");
+  const expr = await reqP(store.get(id));
+  if (expr) {
+    expr.note = note && note.trim() ? note.trim() : null;
     expr.updated_at = Date.now();
     store.put(expr);
   }

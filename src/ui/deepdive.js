@@ -6,6 +6,7 @@
 import { DEEP_DIVE_KINDS, deepDive } from "../ai/deepdive.js";
 import { appendQaLog } from "../db/index.js";
 import { renderMarkdownInto } from "./markdown.js";
+import { UI } from "./strings.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -32,7 +33,7 @@ export function deepDiveControl(expr, { persist = true } = {}) {
   renderLog();
 
   const buttons = el("div", "deepdive__buttons");
-  buttons.append(el("span", "deepdive__label", "深挖"));
+  buttons.append(el("span", "deepdive__label", UI.deepDiveLabel));
   for (const k of DEEP_DIVE_KINDS) {
     const b = el("button", "chip", k.label);
     b.addEventListener("click", async (ev) => {
@@ -47,7 +48,7 @@ export function deepDiveControl(expr, { persist = true } = {}) {
         if (persist && expr.id) await appendQaLog(expr.id, entry);
         renderLog();
       } catch (e) {
-        alert(e?.message === "NO_KEY" ? "先在 Capture 里填好 provider 的 API key。" : `Deep-dive failed: ${e?.message || e}`);
+        alert(e?.message === "NO_KEY" ? UI.deepDiveNoKey : `Deep-dive failed: ${e?.message || e}`);
       } finally {
         b.disabled = false;
         b.textContent = orig;

@@ -11,6 +11,7 @@ import { getExpressions, saveExpression, deleteExpression, getExpressionsByTag }
 import { speakButton } from "../audio/tts.js";
 import { schedulePush } from "../sync/dropbox.js";
 import { renderMarkdownInto } from "../ui/markdown.js";
+import { UI } from "../ui/strings.js";
 import { embedExpression } from "../reassign/index.js";
 
 function el(tag, className, text) {
@@ -41,10 +42,10 @@ function candidateCard(candidate, onSave) {
 
   if (candidate.reading) card.append(el("div", "candidate__reading", candidate.reading));
   if (candidate.gloss_cn) card.append(el("div", "candidate__gloss", candidate.gloss_cn));
-  if (candidate.intent_cn) card.append(el("div", "candidate__intent", `意图：${candidate.intent_cn}`));
+  if (candidate.intent_cn) card.append(el("div", "candidate__intent", `${UI.intentPrefix}${candidate.intent_cn}`));
   // A same-structure example for phrase/pattern cards, so the pattern's skeleton
   // is visible without repeating the source line.
-  if (candidate.example_parallel) card.append(el("div", "candidate__example", `例：${candidate.example_parallel}`));
+  if (candidate.example_parallel) card.append(el("div", "candidate__example", `${UI.examplePrefix}${candidate.example_parallel}`));
   if (candidate.topics?.length) card.append(tagRow("topics", candidate.topics));
   if (candidate.intents?.length) card.append(tagRow("intents", candidate.intents));
 
@@ -85,7 +86,7 @@ export function mountCapture(root) {
   }
   const keyInput = el("input", "settings-bar__key");
   keyInput.type = "password";
-  keyInput.placeholder = "API key (stored on-device only)";
+  keyInput.placeholder = UI.apiKeyPlaceholder;
   keyInput.value = (s.apiKeys && s.apiKeys[enrichOf(s)]) || "";
 
   select.addEventListener("change", () => {
@@ -97,7 +98,7 @@ export function mountCapture(root) {
     const cur = getSettings();
     setSetting("apiKeys", { ...cur.apiKeys, [select.value]: keyInput.value.trim() });
   });
-  bar.append(el("span", "settings-bar__label", "Enrich provider"), select, keyInput);
+  bar.append(el("span", "settings-bar__label", UI.enrichProvider), select, keyInput);
   root.append(bar);
 
   // --- The three capture entries ---
@@ -178,7 +179,7 @@ async function relatedBlock(candidates) {
   const rows = [...seen.values()];
   if (!rows.length) return null;
   const box = el("div", "related");
-  box.append(el("div", "entry__cards-label", "你已存过的相关表达（同意图）："));
+  box.append(el("div", "entry__cards-label", UI.relatedLabel));
   for (const e of rows.slice(0, 10)) {
     const r = el("div", "related__item");
     r.append(el("span", "related__surface", e.surface));
@@ -197,7 +198,7 @@ function quickLookupEntry(onSave) {
 
   const form = el("form", "entry__form");
   const input = el("input", "entry__input");
-  input.placeholder = '例如 "紫苏" 或 "perilla"';
+  input.placeholder = UI.quickLookupPlaceholder;
   const go = el("button", "btn", "Look up");
   go.type = "submit";
   form.append(input, go);
@@ -236,10 +237,10 @@ function qaEntry(onSave) {
 
   const form = el("form", "entry__form entry__form--col");
   const raw = el("textarea", "entry__textarea");
-  raw.placeholder = '原文，例如 "He got absolutely shredded this year"';
+  raw.placeholder = UI.qaSourcePlaceholder;
   raw.rows = 2;
   const ask = el("input", "entry__input");
-  ask.placeholder = "你的问题（可留空）";
+  ask.placeholder = UI.qaQuestionPlaceholder;
   const go = el("button", "btn", "Ask");
   go.type = "submit";
   form.append(raw, ask, go);
@@ -290,9 +291,9 @@ function idiomaticEntry(onSave) {
 
   const form = el("form", "entry__form entry__form--col");
   const raw = el("textarea", "entry__textarea");
-  raw.placeholder = '中文意图，例如 "我还有3组，但力竭了，组间休息会久一点"';
+  raw.placeholder = UI.idiomaticPlaceholder;
   raw.rows = 2;
-  const go = el("button", "btn", "地道说法");
+  const go = el("button", "btn", UI.idiomaticButton);
   go.type = "submit";
   form.append(raw, go);
   panel.append(form);

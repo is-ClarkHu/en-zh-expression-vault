@@ -1,7 +1,10 @@
-// Pronunciation (SPEC §8) — system TTS via the Web Speech API. Targets
-// General American (en-US); the user picks among the en-US voices their OS
-// offers (quality varies — macOS "premium/enhanced" voices sound best once
-// downloaded in System Settings → Accessibility → Spoken Content).
+// Pronunciation (SPEC §8, v3 §7) — system TTS via the Web Speech API. Default to a
+// clean General American / US-West-Coast voice and keep the OS's NOVELTY voices out
+// of the way: macOS ships "Albert", "Zarvox", "Bubbles", "Bad News"… all tagged
+// en-US, and picking the raw-first en-US voice landed on one of those — that was
+// the "weird/useless pronunciation" (v3 item 7). We now rank voices by quality and
+// hide the novelties, so the common word gets one clean read. The user can still
+// override via Settings (ttsVoice); the picker (v3 §8) shows the same ranked list.
 //
 // Proper nouns (player/country names) that TTS mangles (§8) are out of scope
 // here; the AI-filled `reading` (IPA) stays visible on the card as a fallback.
@@ -11,6 +14,43 @@ import { getSettings } from "../ai/settings.js";
 export const isSupported = () => "speechSynthesis" in window;
 
 let cache = [];
+
+// macOS novelty / robotic voices that are tagged en-US but read everything wrong.
+// Lower-cased exact names; matched against the voice name's leading token too so
+// "Albert" matches whether or not the OS appends a qualifier.
+const NOVELTY = new Set([
+  "albert", "bad news", "bahh", "bells", "boing", "bubbles", "cellos", "deranged",
+  "good news", "hysterical", "jester", "junior", "kathy", "organ", "pipe organ",
+  "princess", "ralph", "fred", "superstar", "trinoids", "whisper", "wobble", "zarvox",
+]);
+
+// General-American voices to prefer when the user hasn't chosen one, best first.
+// Samantha is the classic macOS GA voice; Aaron/Nicky are the modern Siri-class
+// (US) voices; the Google/Microsoft entries cover Chrome and Edge/Windows.
+const PREFERRED = [
+  "samantha", "ava", "allison", "susan", "nicky", "aaron", "zoe",
+  "google us english", "microsoft aria", "microsoft jenny", "microsoft guy",
+];
+
+const isEnUS = (v) => (v.lang || "").toLowerCase().replace("_", "-").startsWith("en-us");
+const baseName = (v) => (v.name || "").toLowerCase().trim();
+const isNovelty = (v) => {
+  const n = baseName(v);
+  return NOVELTY.has(n) || NOVELTY.has(n.split(/[\s(]/)[0]);
+};
+
+// Higher = better. Preferred GA names rank first (by their order), then
+// enhanced/premium quality, then local (offline, lower-latency) voices.
+function score(v) {
+  const n = baseName(v);
+  let s = 0;
+  const pref = PREFERRED.findIndex((p) => n === p || n.startsWith(p));
+  if (pref !== -1) s += 1000 - pref * 10;
+  if (/enhanced|premium|neural|natural/.test(n)) s += 200;
+  if (v.localService) s += 50;
+  if (v.default) s += 5;
+  return s;
+}
 
 // getVoices() is empty until the engine loads them; wait for voiceschanged once.
 function loadVoices() {
@@ -22,22 +62,26 @@ function loadVoices() {
   });
 }
 
-// en-US voices, local/high-quality first.
+// en-US voices worth offering: novelties dropped, ranked best-first. Used by the
+// Settings voice picker (v3 §8) and by the default pick below.
 export async function enUSVoices() {
   cache = await loadVoices();
   return cache
-    .filter((v) => (v.lang || "").toLowerCase().replace("_", "-").startsWith("en-us"))
-    .sort((a, b) => Number(b.localService) - Number(a.localService));
+    .filter((v) => isEnUS(v) && !isNovelty(v))
+    .sort((a, b) => score(b) - score(a));
 }
 
 function pickVoice() {
   const name = getSettings().ttsVoice;
-  return (
-    cache.find((v) => v.name === name) ||
-    cache.find((v) => (v.lang || "").toLowerCase().replace("_", "-").startsWith("en-us")) ||
-    cache[0] ||
-    null
-  );
+  if (name) {
+    const chosen = cache.find((v) => v.name === name);
+    if (chosen) return chosen; // explicit user choice wins, even if it's a novelty
+  }
+  // No (valid) choice → the best clean GA voice available.
+  const ranked = cache
+    .filter((v) => isEnUS(v) && !isNovelty(v))
+    .sort((a, b) => score(b) - score(a));
+  return ranked[0] || cache.find(isEnUS) || cache[0] || null;
 }
 
 export async function speak(text) {

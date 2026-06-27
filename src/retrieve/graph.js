@@ -17,6 +17,7 @@ import { getExpressions, getExpressionsByTag, getTags, getEdges, putEdges } from
 import { cosine } from "../reassign/cluster.js";
 import { ensureEmbeddingsFor } from "../reassign/index.js";
 import { findRelations } from "../ai/relations.js";
+import { UI } from "../ui/strings.js";
 
 const REGISTERS = ["slang", "casual", "neutral", "formal", "academic", "technical"];
 const PALETTE = [
@@ -322,12 +323,12 @@ export async function mountGraph(root) {
     detail.append(el("strong", "candidate__surface", e.surface));
     if (e.register) detail.append(el("span", "candidate__register", ` ${e.register}`));
     if (e.gloss_cn) detail.append(el("div", "candidate__gloss", e.gloss_cn));
-    if (e.intent_cn) detail.append(el("div", "candidate__intent", `意图：${e.intent_cn}`));
+    if (e.intent_cn) detail.append(el("div", "candidate__intent", `${UI.intentPrefix}${e.intent_cn}`));
 
     // On-demand typed relations: one AI call classifying this word's nearest
     // neighbours (antonym/progression/collocation/synonym), stored as edges and
     // drawn over the graph — no network at render, similarity stays live (v2 §11).
-    const relBtn = el("button", "btn btn--ghost", "找关系");
+    const relBtn = el("button", "btn btn--ghost", UI.findRelations);
     relBtn.addEventListener("click", async () => {
       relBtn.disabled = true;
       relBtn.textContent = "…";
@@ -358,10 +359,10 @@ export async function mountGraph(root) {
         showDetail(e);
         if (!rels.length) detail.append(el("div", "muted", "No strong typed relations found among nearby words."));
       } catch (err) {
-        alert(err?.message === "NO_KEY" ? "先配置 deep-dive provider 的 API key。" : `找关系失败：${err.message || err}`);
+        alert(err?.message === "NO_KEY" ? UI.findRelationsNoKey : `${UI.findRelationsFail}: ${err.message || err}`);
       } finally {
         relBtn.disabled = false;
-        relBtn.textContent = "找关系";
+        relBtn.textContent = UI.findRelations;
       }
     });
     detail.append(relBtn);

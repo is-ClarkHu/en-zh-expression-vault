@@ -16,11 +16,13 @@ const PROMPTS = {
     `英语表达 "${e.surface}" 有什么文化背景或使用注意（地域、人群、语气、冒犯风险）？用中文，简洁。`,
 };
 
+// Labels are UI chrome (English, v3 §4); the PROMPTS above stay Chinese because
+// the deep-dive ANSWER is Chinese content (matching gloss_cn / the Q&A entry).
 export const DEEP_DIVE_KINDS = [
-  { id: "synonyms", label: "近义" },
-  { id: "register", label: "语域" },
-  { id: "contrast", label: "辨析" },
-  { id: "culture", label: "文化" },
+  { id: "synonyms", label: "Synonyms" },
+  { id: "register", label: "Register" },
+  { id: "contrast", label: "Contrast" },
+  { id: "culture", label: "Culture" },
 ];
 
 export async function deepDive(expr, kind) {

@@ -11,6 +11,7 @@
 import { getExpressions, getTags, getExpressionsByTag, markReview } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
 import { deepDiveControl } from "../ui/deepdive.js";
+import { UI } from "../ui/strings.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -50,10 +51,10 @@ function meaningFace(expr) {
   const face = el("div", "flip__content flip__content--meaning");
   if (expr.reading) face.append(el("div", "candidate__reading", expr.reading));
   if (expr.gloss_cn) face.append(el("div", "candidate__gloss", expr.gloss_cn));
-  if (expr.intent_cn) face.append(el("div", "candidate__intent", `意图：${expr.intent_cn}`));
+  if (expr.intent_cn) face.append(el("div", "candidate__intent", `${UI.intentPrefix}${expr.intent_cn}`));
   if (expr.example_src && expr.example_src.trim() && expr.example_src.trim() !== expr.surface)
     face.append(el("div", "candidate__example", `“${expr.example_src}”`));
-  if (expr.example_parallel) face.append(el("div", "candidate__example", `例：${expr.example_parallel}`));
+  if (expr.example_parallel) face.append(el("div", "candidate__example", `${UI.examplePrefix}${expr.example_parallel}`));
   if (expr.topics?.length) face.append(tagRow("topics", expr.topics));
   if (expr.intents?.length) face.append(tagRow("intents", expr.intents));
   face.append(deepDiveControl(expr, { persist: true }));
