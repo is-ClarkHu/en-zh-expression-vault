@@ -8,6 +8,9 @@ const DEFAULTS = {
   provider: "claude", // which LLM powers ask / quick-lookup
   apiKeys: {}, // per-provider keys, local only: { claude, openai, deepseek, ... }
   models: {}, // optional per-provider model overrides
+  embedProvider: "openai", // which provider computes embeddings (reassign §8 / graph §11)
+  embedModels: {}, // optional per-provider embedding-model overrides
+  lastReassignedAt: 0, // when the global reassign last ran (local UI hint, §8)
   dropboxAppKey: "", // Dropbox app key (client id) for sync — not a secret (PKCE)
   ttsVoice: "", // chosen Web Speech voice name ("" = auto-pick an en-US voice)
   ttsRate: 1, // speech rate 0.5–1.5

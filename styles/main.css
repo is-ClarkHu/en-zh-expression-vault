@@ -789,6 +789,60 @@ input[type="radio"] {
   text-align: right;
 }
 
+/* ============================================================ reassign (§8) */
+.reassign__panel {
+  flex-basis: 100%;
+  display: grid;
+  gap: var(--s4);
+}
+.reassign__panel:empty {
+  display: none;
+}
+.reassign__axis {
+  display: grid;
+  gap: var(--s2);
+}
+.reassign__axis h3 {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: var(--s2) 0 0;
+}
+.reassign__class {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.reassign__name {
+  font-weight: 600;
+}
+.reassign__members {
+  flex-basis: 100%;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.reassign__badge {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 0.05rem var(--s2);
+  border: 1px solid var(--hairline);
+  color: var(--muted);
+}
+.reassign__badge--merged {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.reassign__badge--split {
+  color: #9a6a2f;
+  border-color: #9a6a2f;
+}
+.reassign__badge--new {
+  color: #3a7a52;
+  border-color: #3a7a52;
+}
+
 /* ============================================================ vault list */
 .vault {
   margin-top: var(--s6);

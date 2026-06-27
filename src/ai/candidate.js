@@ -7,6 +7,7 @@
 // The AI fills the semantic fields; the app stamps id / timestamps on Save.
 
 import { callJSON } from "./provider.js";
+import { getTags } from "../db/index.js";
 
 // The card fields the AI is responsible for. Kept in one place so both prompts
 // describe the same contract (and so the schema can tighten later).
@@ -28,25 +29,42 @@ const RULES = `Rules:
 - Choose the sense that fits the context; for a polyseme give sense_key + the sense-correct gloss/register (e.g. "buff" gym-sense, not game-sense).
 - pos: the part of speech; for a multi-word expression use "phrase" or "pattern" (matching kind).
 - example_parallel: only when kind is "phrase" or "pattern" — write one natural English example that reuses the same structure with DIFFERENT content (e.g. "on his way to get shredded" → "on her way to ace the exam"); it must not repeat the source line. For a bare word, set it to null.
-- topics/intents: 1-3 short lowercase-kebab tags each, inferred from context.
+- topics/intents: 1-3 short lowercase-kebab tags each, inferred from context. REUSE an existing tag from the list below whenever one genuinely fits (so synonymous concepts share a tag instead of splitting); mint a NEW tag only when none matches. Do not force unrelated items into an existing tag — a new tag, even a one-off, is correct when nothing fits.
 - gloss_cn and intent_cn are in Chinese; everything else stays as specified.
 - Respond with ONLY a JSON object. No markdown, no commentary.`;
 
-function quickLookupPrompt(term) {
+// Show the model the tags already in the vault so it reuses them rather than
+// inventing a near-synonym each time (SPEC v2 §7 reuse-first; live tags are a
+// provisional draft the §8 reassign later re-derives). "(none yet)" on an empty
+// vault — the first words legitimately mint the starting tags.
+async function existingTagsBlock() {
+  const [topics, intents] = await Promise.all([getTags("topic"), getTags("intent")]);
+  const fmt = (tags) =>
+    tags.length ? tags.map((t) => t.name).sort().join(", ") : "(none yet)";
+  return `Existing tags already in the vault (prefer reusing these):
+- topics: ${fmt(topics)}
+- intents: ${fmt(intents)}`;
+}
+
+function quickLookupPrompt(term, existingTags) {
   return `You expand a Chinese speaker's English vocabulary. They typed a term (Chinese or English); return the single best English expression to bank, as a filled candidate card.
 
 Term: ${JSON.stringify(term)}
+
+${existingTags}
 
 ${RULES}
 
 Return: { "candidates": [ ${CARD_FIELDS} ] }   // usually exactly one card`;
 }
 
-function askExtractPrompt(input, ask) {
+function askExtractPrompt(input, ask, existingTags) {
   return `A Chinese speaker is learning English and doesn't understand something. Answer their question, then extract the keep-worthy English expression(s) from the raw input as filled candidate cards. One sentence may yield several; a single slang word yields one with the right sense.
 
 Raw input: ${JSON.stringify(input)}
 Their question: ${JSON.stringify(ask || "What does this mean, and what's worth keeping?")}
+
+${existingTags}
 
 ${RULES}
 
@@ -82,7 +100,7 @@ function normalize(candidates, exampleSrc) {
 
 // Entry A — quick-lookup (§3.1). No conversation; returns { candidates }.
 export async function quickLookup(term) {
-  const data = await callJSON(quickLookupPrompt(term));
+  const data = await callJSON(quickLookupPrompt(term, await existingTagsBlock()));
   return { candidates: normalize(data.candidates, term) };
 }
 
@@ -90,7 +108,7 @@ export async function quickLookup(term) {
 // the originating exchange as qa_log (SPEC §2.1) so it travels with the saved
 // card for deep-dives and re-encounters.
 export async function askAndExtract(input, ask) {
-  const data = await callJSON(askExtractPrompt(input, ask));
+  const data = await callJSON(askExtractPrompt(input, ask, await existingTagsBlock()));
   const answer = typeof data.answer === "string" ? data.answer : "";
   const qa = { q: ask || input, a: answer };
   return {

@@ -5,8 +5,9 @@
 
 import { getExpressions, getTags, getEdges, exportVault, importVault } from "../db/index.js";
 import { getSettings, setSetting } from "../ai/settings.js";
-import { isConnected, beginAuth, disconnect, syncNow, redirectUri } from "../sync/dropbox.js";
+import { isConnected, beginAuth, disconnect, syncNow, redirectUri, schedulePush } from "../sync/dropbox.js";
 import { enUSVoices, speak, isSupported as ttsSupported } from "../audio/tts.js";
+import { buildReassignPlan, applyReassignPlan, wordsAddedSince } from "../reassign/index.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -184,10 +185,103 @@ async function pronunciationBar() {
   return wrap;
 }
 
+// One-click global reassign (SPEC v2 §8): re-cluster the whole vault, preview
+// every create/merge/split + word move, apply only on confirm. Live tags are a
+// provisional draft; this re-derives the authoritative grouping.
+async function reassignBar(root) {
+  const wrap = el("section", "settings-bar");
+  const since = await wordsAddedSince();
+  const last = getSettings().lastReassignedAt;
+  const info = el(
+    "span",
+    "sync-bar__label",
+    last ? `${since} word(s) added since last reassign` : "Never reassigned",
+  );
+  const go = el("button", "btn", "Reassign / re-cluster");
+  const status = el("span", "muted");
+  const panel = el("div", "reassign__panel");
+
+  go.addEventListener("click", async () => {
+    go.disabled = true;
+    panel.innerHTML = "";
+    status.textContent = "Working…";
+    try {
+      const { preview, applyPlan } = await buildReassignPlan({ onStatus: (m) => (status.textContent = m) });
+      status.textContent = "";
+      renderReassignPreview(panel, preview, applyPlan, root);
+    } catch (e) {
+      const msg =
+        e.code === "NO_EMBEDDINGS"
+          ? e.message
+          : e.message === "NO_EMBED_KEY"
+            ? "Set an embedding-provider API key (OpenAI/Gemini/Mistral) under Provider first."
+            : `Reassign failed: ${e.message}`;
+      panel.append(el("p", "error", msg));
+    } finally {
+      go.disabled = false;
+    }
+  });
+
+  wrap.append(el("span", "sync-bar__label", "Organize"), info, go, status, panel);
+  return wrap;
+}
+
+function renderReassignPreview(panel, preview, applyPlan, root) {
+  panel.innerHTML = "";
+  let changes = 0;
+  for (const [axis, label] of [["topic", "Topics"], ["intent", "Intents"]]) {
+    const a = preview.axes[axis];
+    changes += a.changed + a.moves.length;
+    const sec = el("div", "reassign__axis");
+    sec.append(el("h3", null, `${label}: ${a.oldCount} → ${a.newCount} classes · ${a.changed} changed · ${a.moves.length} move(s)`));
+    const changed = a.classes.filter((c) => c.status !== "kept");
+    if (!changed.length) sec.append(el("p", "muted", "No structural changes."));
+    for (const c of changed) {
+      const row = el("div", "reassign__class");
+      row.append(el("span", `reassign__badge reassign__badge--${c.status}`, c.status));
+      row.append(el("span", "reassign__name", c.name));
+      const sources = (c.from || []).filter((n) => n !== c.name); // drop the kept name itself
+      if (c.status !== "new" && sources.length) row.append(el("span", "muted", `← ${sources.join(", ")}`));
+      row.append(el("div", "reassign__members muted", c.members.join(" · ")));
+      sec.append(row);
+    }
+    panel.append(sec);
+  }
+
+  const actions = el("div", "data-bar");
+  if (!changes) {
+    panel.append(el("p", "muted", "Already organized — nothing to apply."));
+    const ok = el("button", "btn btn--ghost", "Close");
+    ok.addEventListener("click", () => (panel.innerHTML = ""));
+    actions.append(ok);
+    panel.append(actions);
+    return;
+  }
+  const apply = el("button", "btn", "Apply changes");
+  apply.addEventListener("click", async () => {
+    apply.disabled = true;
+    apply.textContent = "Applying…";
+    try {
+      await applyReassignPlan(applyPlan);
+      schedulePush();
+      mountDashboard(root);
+    } catch (e) {
+      apply.disabled = false;
+      apply.textContent = "Apply changes";
+      alert(`Apply failed: ${e.message}`);
+    }
+  });
+  const cancel = el("button", "btn btn--ghost", "Cancel");
+  cancel.addEventListener("click", () => (panel.innerHTML = ""));
+  actions.append(apply, cancel);
+  panel.append(actions);
+}
+
 export async function mountDashboard(root) {
   root.innerHTML = "";
   root.append(el("p", "muted", "The shape of your vault — distributions, tag counts, growth."));
   root.append(dataBar(root));
+  root.append(await reassignBar(root));
   root.append(dropboxBar(root));
   root.append(await pronunciationBar());
 

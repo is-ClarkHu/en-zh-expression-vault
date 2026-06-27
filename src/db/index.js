@@ -206,6 +206,72 @@ export async function appendQaLog(id, entry) {
   return expr;
 }
 
+// Store a word's embedding vector (SPEC v2 §8/§11). Computed once per word and
+// bumps updated_at so it travels with the card on sync.
+export async function setEmbedding(id, vec) {
+  const db = await openDB();
+  const tx = db.transaction("expressions", "readwrite");
+  const store = tx.objectStore("expressions");
+  const expr = await reqP(store.get(id));
+  if (expr) {
+    expr.embedding = vec;
+    expr.updated_at = Date.now();
+    store.put(expr);
+  }
+  await txDone(tx);
+}
+
+// Apply a global reassign (SPEC v2 §8): replace the tags on the given axes with
+// the authoritative classes and rewrite each expression's axis arrays to match,
+// so a misfiled word actually moves. axisPlans = { topic?: [class], intent?: [class] }
+// where class = { name, members[], prev_tag_id?, merged_from?, split_from? }.
+// One transaction, so the restructure lands all-or-nothing.
+export async function applyReassign(axisPlans) {
+  const db = await openDB();
+  const tx = db.transaction(["expressions", "tags"], "readwrite");
+  const tagStore = tx.objectStore("tags");
+  const exprStore = tx.objectStore("expressions");
+  const field = { topic: "topics", intent: "intents" };
+  const wordClass = { topic: new Map(), intent: new Map() };
+  const now = Date.now();
+
+  // Drop the old tags of every reassigned axis, then write the new classes.
+  for (const t of await reqP(tagStore.getAll())) if (axisPlans[t.axis]) tagStore.delete(t.id);
+  for (const axis of Object.keys(axisPlans)) {
+    for (const cls of axisPlans[axis]) {
+      tagStore.put({
+        id: `${axis}:${cls.name}`,
+        axis,
+        name: cls.name,
+        member_ids: [...cls.members],
+        prev_tag_id: cls.prev_tag_id ?? null,
+        merged_from: cls.merged_from ?? null,
+        split_from: cls.split_from ?? null,
+      });
+      for (const id of cls.members) wordClass[axis].set(id, cls.name);
+    }
+  }
+
+  // Rewrite each expression's reassigned-axis arrays to its single authoritative
+  // class (collapsing the provisional multi-tags); words outside every class go empty.
+  for (const e of await reqP(exprStore.getAll())) {
+    let changed = false;
+    for (const axis of Object.keys(axisPlans)) {
+      const cls = wordClass[axis].get(e.id);
+      const next = cls ? [cls] : [];
+      if (JSON.stringify(next) !== JSON.stringify(e[field[axis]] || [])) {
+        e[field[axis]] = next;
+        changed = true;
+      }
+    }
+    if (changed) {
+      e.updated_at = now;
+      exprStore.put(e);
+    }
+  }
+  await txDone(tx);
+}
+
 // AI response cache (SPEC §10). Keyed by provider+model+prompt; values are the
 // raw completion text. Lives in the vault DB but is excluded from export/import
 // (it's a regenerable local cache, not vault data).

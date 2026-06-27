@@ -113,6 +113,51 @@ export async function callText(prompt, opts = {}) {
   return text;
 }
 
+// --- embeddings (SPEC v2 §8 reassign / §11 graph) ---------------------------
+// One vector per word, used by the reassign clustering and (later) the graph.
+// OpenAI-compatible embeddings for openai/mistral; Gemini's batch endpoint
+// otherwise. DeepSeek/Moonshot have no embedding API — pick an embed-capable
+// provider in settings. The provider is chosen independently of the chat one.
+const EMBED_OPENAI_COMPAT = {
+  openai: "https://api.openai.com/v1/embeddings",
+  mistral: "https://api.mistral.ai/v1/embeddings",
+};
+export const EMBED_PROVIDERS = [
+  { id: "openai", label: "OpenAI", defaultModel: "text-embedding-3-small" },
+  { id: "gemini", label: "Gemini", defaultModel: "text-embedding-004" },
+  { id: "mistral", label: "Mistral", defaultModel: "mistral-embed" },
+];
+
+export function embedProviderMeta(id) {
+  return EMBED_PROVIDERS.find((p) => p.id === id) || EMBED_PROVIDERS[0];
+}
+
+// Embed an array of texts → array of number[] vectors (input order preserved).
+export async function embedTexts(texts) {
+  if (!texts.length) return [];
+  const s = getSettings();
+  const pid = s.embedProvider || "openai";
+  const key = (s.apiKeys && s.apiKeys[pid]) || "";
+  if (!key) throw new Error("NO_EMBED_KEY");
+  const model = (s.embedModels && s.embedModels[pid]) || embedProviderMeta(pid).defaultModel;
+
+  if (pid === "gemini") {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:batchEmbedContents?key=${encodeURIComponent(key)}`;
+    const data = await postJSON(url, { "content-type": "application/json" }, {
+      requests: texts.map((t) => ({ model: `models/${model}`, content: { parts: [{ text: t }] } })),
+    });
+    return (data.embeddings || []).map((e) => e.values);
+  }
+
+  const url = EMBED_OPENAI_COMPAT[pid];
+  if (!url) throw new Error(`Provider "${pid}" has no embedding endpoint — pick OpenAI, Gemini, or Mistral.`);
+  const data = await postJSON(url, { "content-type": "application/json", authorization: `Bearer ${key}` }, {
+    model,
+    input: texts,
+  });
+  return (data.data || []).map((d) => d.embedding);
+}
+
 // Pull the first JSON object/array out of a model reply (tolerates ```json
 // fences and stray prose around it).
 function extractJSON(text) {
