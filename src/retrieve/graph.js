@@ -13,15 +13,23 @@
 // Two range modes (§10): Filter (by topic / intent / register / last-N — the
 // common case) and Lasso (drag a box over a global thumbnail to grab a patch).
 
-import { getExpressions, getExpressionsByTag, getTags } from "../db/index.js";
+import { getExpressions, getExpressionsByTag, getTags, getEdges, putEdges } from "../db/index.js";
 import { cosine } from "../reassign/cluster.js";
 import { ensureEmbeddingsFor } from "../reassign/index.js";
+import { findRelations } from "../ai/relations.js";
 
 const REGISTERS = ["slang", "casual", "neutral", "formal", "academic", "technical"];
 const PALETTE = [
   "#28514a", "#9a6a2f", "#3a5a7a", "#6a4a6a", "#4a6a3a",
   "#7a4a3a", "#3a6a6a", "#6a5a2a", "#5a3a5a", "#2a5a4a",
 ];
+// Typed-relation edge styling (SPEC §2.3). Restrained, distinct per type.
+const REL_STYLE = {
+  synonym: { stroke: "#28514a", dash: "" },
+  antonym: { stroke: "#9a6a2f", dash: "5 4" },
+  progression: { stroke: "#3a7a52", dash: "1 5" },
+  collocation: { stroke: "#6a5a9a", dash: "8 5" },
+};
 const MAX_LIVE = 150; // above this we skip live O(N²) edges + force layout
 const W = 800, H = 520, PAD = 28;
 
@@ -232,7 +240,9 @@ export async function mountGraph(root) {
     const live = withVec.length <= MAX_LIVE;
     const edges0 = live ? computeEdges(items, +thr.value) : [];
     const pos = fit(live ? forceLayout(withVec.length, edges0) : ringLayout(withVec.length));
-    current = { exprs: withVec, items, pos, live };
+    const ids = new Set(withVec.map((e) => e.id));
+    const typed = (await getEdges()).filter((ed) => ids.has(ed.from_id) && ids.has(ed.to_id));
+    current = { exprs: withVec, items, pos, live, typed };
     if (!live) status.textContent = `${withVec.length} nodes — too many for live edges; showing the node cloud. Narrow the range for connections.`;
     draw(+thr.value);
   }
@@ -257,6 +267,17 @@ export async function mountGraph(root) {
         stroke: "currentColor", "stroke-opacity": 0.16, "stroke-width": 1,
       }));
     }
+    // typed relation edges (on-demand AI), drawn over the similarity layer
+    const idx = new Map(exprs.map((e, i) => [e.id, i]));
+    for (const te of current.typed || []) {
+      const a = idx.get(te.from_id), b = idx.get(te.to_id);
+      if (a == null || b == null) continue;
+      const st = REL_STYLE[te.type] || REL_STYLE.synonym;
+      svg.append(svgEl("line", {
+        x1: pos[a].x, y1: pos[a].y, x2: pos[b].x, y2: pos[b].y,
+        stroke: st.stroke, "stroke-opacity": 0.85, "stroke-width": 1.5, "stroke-dasharray": st.dash,
+      }));
+    }
     for (let i = 0; i < exprs.length; i++) {
       const c = svgEl("circle", { cx: pos[i].x, cy: pos[i].y, r: 6, fill: color(exprs[i]), class: "graph__node" });
       const title = svgEl("title", {});
@@ -277,6 +298,21 @@ export async function mountGraph(root) {
       legend.append(item);
     });
     stage.append(legend);
+
+    // legend for any typed relations present
+    const relTypes = [...new Set((current.typed || []).map((t) => t.type))];
+    if (relTypes.length) {
+      const rl = el("div", "graph__legend");
+      for (const t of relTypes) {
+        const item = el("span", "graph__legend-item");
+        const sw = el("span", "graph__rel-swatch");
+        sw.style.borderTopColor = (REL_STYLE[t] || REL_STYLE.synonym).stroke;
+        sw.style.borderTopStyle = (REL_STYLE[t] || REL_STYLE.synonym).dash ? "dashed" : "solid";
+        item.append(sw, document.createTextNode(t));
+        rl.append(item);
+      }
+      stage.append(rl);
+    }
     stage.append(el("p", "muted", `${exprs.length} nodes · ${edges.length} edges at cosine ≥ ${threshold.toFixed(2)}`));
   }
 
@@ -287,6 +323,48 @@ export async function mountGraph(root) {
     if (e.register) detail.append(el("span", "candidate__register", ` ${e.register}`));
     if (e.gloss_cn) detail.append(el("div", "candidate__gloss", e.gloss_cn));
     if (e.intent_cn) detail.append(el("div", "candidate__intent", `意图：${e.intent_cn}`));
+
+    // On-demand typed relations: one AI call classifying this word's nearest
+    // neighbours (antonym/progression/collocation/synonym), stored as edges and
+    // drawn over the graph — no network at render, similarity stays live (v2 §11).
+    const relBtn = el("button", "btn btn--ghost", "找关系");
+    relBtn.addEventListener("click", async () => {
+      relBtn.disabled = true;
+      relBtn.textContent = "…";
+      try {
+        const self = current.items.find((it) => it.id === e.id);
+        const neighbours = current.items
+          .filter((it) => it.id !== e.id)
+          .map((it) => ({ it, s: cosine(self.vec, it.vec) }))
+          .sort((a, b) => b.s - a.s)
+          .slice(0, 8)
+          .map(({ it }) => {
+            const ex = current.exprs.find((x) => x.id === it.id);
+            return { id: it.id, surface: ex.surface, gloss_cn: ex.gloss_cn };
+          });
+        const rels = await findRelations(e, neighbours);
+        const edges = rels.map((r) => ({
+          id: `${e.id}~${r.to}~${r.type}`,
+          from_id: e.id,
+          to_id: r.to,
+          type: r.type,
+          source: "ai",
+          confidence: r.confidence,
+        }));
+        await putEdges(edges);
+        const ids = new Set(current.exprs.map((x) => x.id));
+        current.typed = (await getEdges()).filter((ed) => ids.has(ed.from_id) && ids.has(ed.to_id));
+        draw(+thr.value);
+        showDetail(e);
+        if (!rels.length) detail.append(el("div", "muted", "No strong typed relations found among nearby words."));
+      } catch (err) {
+        alert(err?.message === "NO_KEY" ? "先配置 deep-dive provider 的 API key。" : `找关系失败：${err.message || err}`);
+      } finally {
+        relBtn.disabled = false;
+        relBtn.textContent = "找关系";
+      }
+    });
+    detail.append(relBtn);
   }
 
   thr.addEventListener("input", () => {

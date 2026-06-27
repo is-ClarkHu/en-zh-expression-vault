@@ -7,7 +7,7 @@
 import { getSettings, setSetting } from "../ai/settings.js";
 import { PROVIDERS } from "../ai/provider.js";
 import { quickLookup, askAndExtract, idiomatic } from "../ai/candidate.js";
-import { getExpressions, saveExpression, deleteExpression } from "../db/index.js";
+import { getExpressions, saveExpression, deleteExpression, getExpressionsByTag } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
 import { schedulePush } from "../sync/dropbox.js";
 import { renderMarkdownInto } from "../ui/markdown.js";
@@ -167,6 +167,28 @@ function errMessage(e) {
   return `Error: ${e?.message || e}`;
 }
 
+// Re-encounter on use (SPEC §6.2): surface expressions you've ALREADY saved that
+// share an intent with what you just looked up — you meet them again at the very
+// moment you'd reach for them. Returns a node, or null if there's nothing yet.
+async function relatedBlock(candidates) {
+  const intents = [...new Set(candidates.flatMap((c) => c.intents || []))];
+  if (!intents.length) return null;
+  const seen = new Map();
+  for (const it of intents) for (const e of await getExpressionsByTag("intent", it)) seen.set(e.id, e);
+  const rows = [...seen.values()];
+  if (!rows.length) return null;
+  const box = el("div", "related");
+  box.append(el("div", "entry__cards-label", "你已存过的相关表达（同意图）："));
+  for (const e of rows.slice(0, 10)) {
+    const r = el("div", "related__item");
+    r.append(el("span", "related__surface", e.surface));
+    r.append(speakButton(e.surface));
+    if (e.gloss_cn) r.append(el("span", "vault__gloss", e.gloss_cn));
+    box.append(r);
+  }
+  return box;
+}
+
 // Entry A — quick-lookup (§3.1).
 function quickLookupEntry(onSave) {
   const panel = el("section", "entry");
@@ -193,7 +215,10 @@ function quickLookupEntry(onSave) {
     try {
       const { candidates } = await quickLookup(term);
       if (!candidates.length) return out.status("No candidate returned. Try rephrasing.");
-      out.render(candidates.map((c) => candidateCard(c, onSave)));
+      const nodes = candidates.map((c) => candidateCard(c, onSave));
+      const rel = await relatedBlock(candidates);
+      if (rel) nodes.push(rel);
+      out.render(nodes);
     } catch (err) {
       out.status(errMessage(err), "error");
     } finally {
@@ -244,6 +269,8 @@ function qaEntry(onSave) {
       } else {
         nodes.push(el("p", "muted", "No keep-worthy expression extracted."));
       }
+      const rel = await relatedBlock(candidates);
+      if (rel) nodes.push(rel);
       out.render(nodes);
     } catch (err) {
       out.status(errMessage(err), "error");
@@ -302,6 +329,8 @@ function idiomaticEntry(onSave) {
         nodes.push(...candidates.map((c) => candidateCard(c, onSave)));
       }
       if (!nodes.length) return out.status("No renderings returned. Try rephrasing.");
+      const rel = await relatedBlock(candidates);
+      if (rel) nodes.push(rel);
       out.render(nodes);
     } catch (err) {
       out.status(errMessage(err), "error");

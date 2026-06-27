@@ -443,6 +443,23 @@ input[type="radio"] {
   grid-column: 1 / -1; /* idiomatic box spans the full row — richer output */
 }
 
+/* re-encounter on use (§6.2): already-saved siblings shown at capture time */
+.related {
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--s2);
+  display: grid;
+  gap: var(--s1);
+}
+.related__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.related__surface {
+  font-weight: 600;
+}
+
 /* idiomatic renderings (§5) */
 .renderings {
   display: grid;
@@ -878,6 +895,13 @@ input[type="radio"] {
   height: 0.7rem;
   border-radius: 50%;
   display: inline-block;
+}
+.graph__rel-swatch {
+  width: 1.1rem;
+  height: 0;
+  border-top: 2px solid;
+  display: inline-block;
+  vertical-align: middle;
 }
 .graph__detail {
   padding: var(--s3);

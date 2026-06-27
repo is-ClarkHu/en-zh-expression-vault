@@ -332,11 +332,21 @@ export async function getExpressionsByTag(axis, name) {
   return rows.filter(Boolean);
 }
 
-// Knowledge-graph edges (§2.3). Empty until the AI layer / recluster.py
-// populate them; exposed now so the dashboard can report the count.
+// Knowledge-graph edges (§2.3). Typed AI relations (synonym/antonym/progression/
+// collocation) populated on demand from the graph; similarity is computed live
+// instead (v2 §11). Exposed for the dashboard count + the graph overlay.
 export async function getEdges() {
   const db = await openDB();
   return reqP(db.transaction("edges").objectStore("edges").getAll());
+}
+
+// Upsert typed edges (SPEC §2.3). Keyed by id so re-running relations on a word
+// replaces its prior edges rather than duplicating them.
+export async function putEdges(edges) {
+  const db = await openDB();
+  const tx = db.transaction("edges", "readwrite");
+  for (const e of edges) tx.objectStore("edges").put(e);
+  await txDone(tx);
 }
 
 // --- single-file sync shape (§7) ---------------------------------------
