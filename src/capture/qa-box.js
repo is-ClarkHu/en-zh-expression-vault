@@ -11,6 +11,7 @@ import { getExpressions, saveExpression, deleteExpression } from "../db/index.js
 import { speakButton } from "../audio/tts.js";
 import { schedulePush } from "../sync/dropbox.js";
 import { renderMarkdownInto } from "../ui/markdown.js";
+import { embedExpression } from "../reassign/index.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -51,7 +52,8 @@ function candidateCard(candidate, onSave) {
   save.addEventListener("click", async () => {
     save.disabled = true;
     try {
-      await saveExpression(candidate);
+      const saved = await saveExpression(candidate);
+      embedExpression(saved); // compute this word's vector once (SPEC v2 §11), best-effort
       save.textContent = "Saved ✓";
       schedulePush(); // auto-sync if Dropbox connected
       await onSave?.();

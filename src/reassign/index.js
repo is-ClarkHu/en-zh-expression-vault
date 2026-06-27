@@ -41,10 +41,12 @@ export async function wordsAddedSince() {
   return rows.filter((e) => (e.created_at || 0) > since).length;
 }
 
-// Compute + store embeddings for any words missing one. Returns count embedded.
-async function ensureEmbeddings(onStatus) {
-  const all = await getExpressions();
-  const missing = all.filter((e) => !hasVec(e));
+// Compute + store embeddings for any words in `list` missing one. Mutates the
+// passed objects in place (sets .embedding) so the caller can use them straight
+// away. Returns count embedded. Shared by reassign (whole vault) and the graph
+// (just the selected range).
+export async function ensureEmbeddingsFor(list, onStatus) {
+  const missing = list.filter((e) => !hasVec(e));
   if (!missing.length) return 0;
   onStatus?.(`Embedding ${missing.length} word(s)…`);
   const vecs = await embedTexts(missing.map(wordText));
@@ -52,10 +54,23 @@ async function ensureEmbeddings(onStatus) {
   for (let i = 0; i < missing.length; i++) {
     if (Array.isArray(vecs[i]) && vecs[i].length) {
       await setEmbedding(missing[i].id, vecs[i]);
+      missing[i].embedding = vecs[i];
       n++;
     }
   }
   return n;
+}
+
+// Embed one freshly-saved word (SPEC v2 §11: one short request per save, the
+// vector is never recomputed). Best-effort — a missing key / CORS just defers it
+// to the next reassign or graph generate, which fill embeddings on demand.
+export async function embedExpression(expr) {
+  try {
+    const [vec] = await embedTexts([wordText(expr)]);
+    if (Array.isArray(vec) && vec.length) await setEmbedding(expr.id, vec);
+  } catch {
+    /* deferred */
+  }
 }
 
 // LLM auto-name for a new/split class; falls back to a kebab of a member so a
@@ -90,8 +105,8 @@ function provenance(axis, c) {
 
 // Build the full reassign preview + an apply-ready plan, without writing anything.
 export async function buildReassignPlan({ threshold = DEFAULT_THRESHOLD, onStatus } = {}) {
-  await ensureEmbeddings(onStatus);
   const all = await getExpressions();
+  await ensureEmbeddingsFor(all, onStatus); // fills .embedding in place
   const surf = (id) => all.find((e) => e.id === id)?.surface || id;
 
   const preview = { threshold, axes: {} };

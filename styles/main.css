@@ -686,6 +686,35 @@ input[type="radio"] {
 }
 
 /* ============================================================ graph */
+.graph-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+  max-width: 100%;
+}
+.graph-controls[hidden] {
+  display: none; /* beat the .graph-controls display:flex so [hidden] takes effect */
+}
+.graph-controls select {
+  width: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.graph-controls input[type="range"] {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+.graph__stage {
+  display: grid;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+.graph__thumb {
+  width: 100%;
+  margin-top: var(--s2);
+}
 .graph__svg {
   width: 100%;
   height: auto;
@@ -693,6 +722,16 @@ input[type="radio"] {
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   color: var(--ink);
+}
+.graph__svg--thumb {
+  touch-action: none;
+  cursor: crosshair;
+}
+.graph__lasso {
+  fill: var(--accent-wash);
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
 }
 .graph__node {
   cursor: pointer;
