@@ -33,6 +33,7 @@ function candidateCard(candidate, onSave) {
   const head = el("div", "candidate__head");
   head.append(el("span", "candidate__surface", candidate.surface));
   head.append(speakButton(candidate.surface));
+  if (candidate.pos) head.append(el("span", "candidate__pos", candidate.pos));
   head.append(el("span", "candidate__register", candidate.register));
   if (candidate.sense_key) head.append(el("span", "candidate__sense", candidate.sense_key));
   card.append(head);
@@ -40,6 +41,9 @@ function candidateCard(candidate, onSave) {
   if (candidate.reading) card.append(el("div", "candidate__reading", candidate.reading));
   if (candidate.gloss_cn) card.append(el("div", "candidate__gloss", candidate.gloss_cn));
   if (candidate.intent_cn) card.append(el("div", "candidate__intent", `意图：${candidate.intent_cn}`));
+  // A same-structure example for phrase/pattern cards, so the pattern's skeleton
+  // is visible without repeating the source line.
+  if (candidate.example_parallel) card.append(el("div", "candidate__example", `例：${candidate.example_parallel}`));
   if (candidate.topics?.length) card.append(tagRow("topics", candidate.topics));
   if (candidate.intents?.length) card.append(tagRow("intents", candidate.intents));
 

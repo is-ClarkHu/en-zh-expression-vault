@@ -33,12 +33,17 @@ function resultCard(expr) {
   const head = el("div", "candidate__head");
   head.append(el("span", "candidate__surface", expr.surface));
   head.append(speakButton(expr.surface));
+  if (expr.pos) head.append(el("span", "candidate__pos", expr.pos));
   if (expr.register) head.append(el("span", "candidate__register", expr.register));
   if (expr.sense_key) head.append(el("span", "candidate__sense", expr.sense_key));
   card.append(head);
   if (expr.reading) card.append(el("div", "candidate__reading", expr.reading));
   if (expr.gloss_cn) card.append(el("div", "candidate__gloss", expr.gloss_cn));
   if (expr.intent_cn) card.append(el("div", "candidate__intent", `意图：${expr.intent_cn}`));
+  // Original line, then a same-structure parallel example for phrase/pattern.
+  if (expr.example_src && expr.example_src.trim() && expr.example_src.trim() !== expr.surface)
+    card.append(el("div", "candidate__example", `“${expr.example_src}”`));
+  if (expr.example_parallel) card.append(el("div", "candidate__example", `例：${expr.example_parallel}`));
   if (expr.topics?.length) card.append(tagRow("topics", expr.topics));
   if (expr.intents?.length) card.append(tagRow("intents", expr.intents));
   card.append(deepDiveControl(expr, { persist: true }));

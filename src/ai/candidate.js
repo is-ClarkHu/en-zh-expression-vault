@@ -13,17 +13,21 @@ import { callJSON } from "./provider.js";
 const CARD_FIELDS = `{
   "surface": string,        // the expression as written, e.g. "get shredded" / "perilla"
   "kind": "word" | "phrase" | "pattern",
+  "pos": "noun"|"verb"|"adj"|"adv"|"prep"|"conj"|"phrase"|"pattern", // part of speech; use "phrase"/"pattern" for multi-word items
   "reading": string|null,   // IPA, e.g. "/pəˈrɪlə/"; null if not useful
   "gloss_cn": string,       // concise Chinese gloss
   "intent_cn": string,      // the communicative intent in Chinese, e.g. "形容某人很强壮"
   "register": "slang"|"casual"|"neutral"|"formal"|"academic"|"technical",
   "sense_key": string|null, // short disambiguator when the surface is polysemous, e.g. "buff:gym"
+  "example_parallel": string|null, // ONLY for kind phrase/pattern: one NEW example reusing the same word/pattern, NOT identical to the source line (scenario may differ); null for a bare word
   "topics": string[],       // topic tags, e.g. ["gym","fitness"]
   "intents": string[]       // intent tags, e.g. ["describe-strong"]
 }`;
 
 const RULES = `Rules:
 - Choose the sense that fits the context; for a polyseme give sense_key + the sense-correct gloss/register (e.g. "buff" gym-sense, not game-sense).
+- pos: the part of speech; for a multi-word expression use "phrase" or "pattern" (matching kind).
+- example_parallel: only when kind is "phrase" or "pattern" — write one natural English example that reuses the same structure with DIFFERENT content (e.g. "on his way to get shredded" → "on her way to ace the exam"); it must not repeat the source line. For a bare word, set it to null.
 - topics/intents: 1-3 short lowercase-kebab tags each, inferred from context.
 - gloss_cn and intent_cn are in Chinese; everything else stays as specified.
 - Respond with ONLY a JSON object. No markdown, no commentary.`;
@@ -56,18 +60,24 @@ function normalize(candidates, exampleSrc) {
   if (!Array.isArray(candidates)) return [];
   return candidates
     .filter((c) => c && typeof c.surface === "string" && c.surface.trim())
-    .map((c) => ({
-      surface: c.surface.trim(),
-      kind: c.kind || "word",
-      reading: c.reading || null,
-      gloss_cn: c.gloss_cn || "",
-      intent_cn: c.intent_cn || "",
-      register: c.register || "neutral",
-      sense_key: c.sense_key || null,
-      topics: Array.isArray(c.topics) ? c.topics : [],
-      intents: Array.isArray(c.intents) ? c.intents : [],
-      example_src: exampleSrc,
-    }));
+    .map((c) => {
+      const kind = c.kind || "word";
+      return {
+        surface: c.surface.trim(),
+        kind,
+        pos: c.pos || null,
+        reading: c.reading || null,
+        gloss_cn: c.gloss_cn || "",
+        intent_cn: c.intent_cn || "",
+        register: c.register || "neutral",
+        sense_key: c.sense_key || null,
+        // example_parallel only applies to multi-word items; drop it for bare words
+        example_parallel: kind === "word" ? null : c.example_parallel || null,
+        topics: Array.isArray(c.topics) ? c.topics : [],
+        intents: Array.isArray(c.intents) ? c.intents : [],
+        example_src: exampleSrc,
+      };
+    });
 }
 
 // Entry A — quick-lookup (§3.1). No conversation; returns { candidates }.

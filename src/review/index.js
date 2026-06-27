@@ -86,6 +86,7 @@ export async function mountReview(root) {
     const front = el("div", "review-card__front");
     front.append(el("span", "review-card__surface", expr.surface));
     front.append(speakButton(expr.surface));
+    if (expr.pos) front.append(el("span", "candidate__pos", expr.pos));
     if (expr.register) front.append(el("span", "candidate__register", expr.register));
     const hint = el("div", "review-card__hint", "tap to reveal");
 
@@ -97,6 +98,7 @@ export async function mountReview(root) {
     if (expr.topics?.length) back.append(tagRow("topics", expr.topics));
     if (expr.intents?.length) back.append(tagRow("intents", expr.intents));
     if (expr.example_src) back.append(el("div", "review-card__src", `"${expr.example_src}"`));
+    if (expr.example_parallel) back.append(el("div", "candidate__example", `例：${expr.example_parallel}`));
     back.append(deepDiveControl(expr, { persist: true }));
 
     card.append(front, hint, back);

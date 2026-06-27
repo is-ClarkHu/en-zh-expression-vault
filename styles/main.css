@@ -23,6 +23,7 @@
   --accent-wash: rgba(40, 81, 74, 0.08); /* faint accent tint for active chips */
   --error: #8c3b30;
   --fill: #d6d4ca; /* neutral bar/track fill — accent never fills large areas */
+  --track: #efeee8;
 
   /* type */
   --font-display: "Hanken Grotesk", "Schibsted Grotesk", ui-sans-serif, -apple-system,
@@ -464,7 +465,8 @@ input[type="radio"] {
   letter-spacing: -0.01em;
 }
 .candidate__register,
-.candidate__sense {
+.candidate__sense,
+.candidate__pos {
   font-size: 0.72rem;
   color: var(--muted);
   border: 1px solid var(--hairline);
@@ -485,6 +487,13 @@ input[type="radio"] {
   font-size: 0.9rem;
   color: var(--accent); /* the single accented element on the card */
   font-family: var(--font-cjk);
+}
+.candidate__example {
+  margin-top: var(--s2);
+  font-size: 0.88rem;
+  color: var(--muted);
+  font-style: italic;
+  overflow-wrap: anywhere;
 }
 
 /* ============================================================ tags / chips */
