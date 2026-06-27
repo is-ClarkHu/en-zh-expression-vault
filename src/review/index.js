@@ -10,8 +10,13 @@
 
 import { getExpressions, getTags, getExpressionsByTag, markReview } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
-import { deepDiveControl } from "../ui/deepdive.js";
+import { openDetail } from "../ui/detail-panel.js";
+import { expressionDetail } from "../ui/expression-detail.js";
 import { UI } from "../ui/strings.js";
+
+// Reading (pronunciation) visibility is a session toggle shared across cards,
+// like jp-flashcard's reading on/off (v3 §2d). Off by default for recall.
+let showReading = false;
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -46,10 +51,12 @@ function surfaceFace(expr) {
   return face;
 }
 
-// The "meaning" side — reading, gloss, intent, examples, tags, deep-dive.
+// The "meaning" side — reading (when toggled on), gloss, intent, examples, tags.
+// Deep-dive + note now live OFF the card in the detail panel (v3 §2b), opened
+// with the Details control / D key.
 function meaningFace(expr) {
   const face = el("div", "flip__content flip__content--meaning");
-  if (expr.reading) face.append(el("div", "candidate__reading", expr.reading));
+  if (showReading && expr.reading) face.append(el("div", "candidate__reading", expr.reading));
   if (expr.gloss_cn) face.append(el("div", "candidate__gloss", expr.gloss_cn));
   if (expr.intent_cn) face.append(el("div", "candidate__intent", `${UI.intentPrefix}${expr.intent_cn}`));
   if (expr.example_src && expr.example_src.trim() && expr.example_src.trim() !== expr.surface)
@@ -57,7 +64,6 @@ function meaningFace(expr) {
   if (expr.example_parallel) face.append(el("div", "candidate__example", `${UI.examplePrefix}${expr.example_parallel}`));
   if (expr.topics?.length) face.append(tagRow("topics", expr.topics));
   if (expr.intents?.length) face.append(tagRow("intents", expr.intents));
-  face.append(deepDiveControl(expr, { persist: true }));
   return face;
 }
 
@@ -76,7 +82,7 @@ function createFlip(frontNode, backNode) {
     element: root,
     flipped: false,
     fit() {
-      root.style.height = `${Math.max(f.scrollHeight, b.scrollHeight)}px`;
+      /* fixed-size card now (v3 §2a): height comes from CSS, faces scroll. */
     },
     flip() {
       api.flipped = !api.flipped;
@@ -143,46 +149,79 @@ export async function mountReview(root) {
   render();
 }
 
-// --- Browse: flip + shuffle (the calm default) -----------------------------
+// --- Browse: a calm sequential deck — flip, prev/next, shuffle, reading toggle,
+// details — with jp-flashcard hotkeys (Space/Enter flip · ←/→ prev/next ·
+// S shuffle · R reading · D details). Deep-dive lives in the detail panel (§2b).
 async function renderBrowse(stage, pool) {
   if (!pool.length) {
     stage.append(el("p", "muted", "Nothing here yet — save some expressions first."));
     return null;
   }
-  let lastId = null;
+  let order = pool.slice();
+  let idx = 0;
+
   const slot = el("div");
   const controls = el("div", "review__controls");
-  const next = el("button", "btn", "Next ↻");
-  next.disabled = pool.length < 2;
-  controls.append(next);
-  stage.append(slot, controls);
+  const prev = el("button", "btn btn--ghost", "← Prev");
+  const flipBtn = el("button", "btn", "Flip");
+  const next = el("button", "btn btn--ghost", "Next →");
+  const shuffleBtn = el("button", "btn btn--ghost", "Shuffle");
+  const readingBtn = el("button", "btn btn--ghost");
+  const detailsBtn = el("button", "btn btn--ghost", "Details");
+  prev.disabled = next.disabled = order.length < 2;
+  const readingLabel = () => (showReading ? "Reading: on" : "Reading: off");
+  readingBtn.textContent = readingLabel();
+  readingBtn.classList.toggle("btn--active", showReading);
+  controls.append(prev, flipBtn, next, shuffleBtn, readingBtn, detailsBtn);
 
-  function pick() {
-    if (pool.length <= 1) return pool[0];
-    let e;
-    do {
-      e = pool[Math.floor(Math.random() * pool.length)];
-    } while (e.id === lastId);
-    return e;
-  }
+  const count = el("div", "review-card__hint");
+  const hint = el("p", "review-card__hint", "Space: flip · ← prev · → next · S shuffle · R reading · D details");
+  stage.append(count, slot, controls, hint);
+
+  let card = null;
   function draw() {
-    const expr = pick();
-    lastId = expr.id;
+    const expr = order[idx];
     slot.innerHTML = "";
-    const card = createFlip(surfaceFace(expr), meaningFace(expr));
-    const hint = el("div", "review-card__hint", "tap to flip");
+    card = createFlip(surfaceFace(expr), meaningFace(expr));
     card.element.addEventListener("click", (e) => {
-      if (e.target.closest(".deepdive, button")) return; // let deep-dive / speak work
+      if (e.target.closest("button")) return; // let the speak button work
       card.flip();
-      hint.textContent = card.flipped ? "tap to flip back" : "tap to flip";
-      card.fit();
     });
-    slot.append(card.element, hint);
-    card.fit();
+    slot.append(card.element);
+    count.textContent = `${idx + 1} / ${order.length}`;
   }
-  next.addEventListener("click", draw);
+  const go = (d) => { idx = (idx + d + order.length) % order.length; draw(); };
+  const openDetails = () => openDetail(expressionDetail(order[idx]), { title: order[idx].surface });
+
+  prev.addEventListener("click", () => go(-1));
+  next.addEventListener("click", () => go(1));
+  flipBtn.addEventListener("click", () => card?.flip());
+  detailsBtn.addEventListener("click", openDetails);
+  shuffleBtn.addEventListener("click", () => {
+    const cur = order[idx];
+    order = shuffle(order);
+    idx = Math.max(0, order.indexOf(cur));
+    draw();
+  });
+  readingBtn.addEventListener("click", () => {
+    showReading = !showReading;
+    readingBtn.textContent = readingLabel();
+    readingBtn.classList.toggle("btn--active", showReading);
+    draw(); // re-render the current card with/without the reading line
+  });
+
+  const onKey = (e) => {
+    if (e.target.matches("input, textarea, select")) return;
+    if (e.key === " " || e.key === "Enter") { e.preventDefault(); card?.flip(); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
+    else if (e.key === "s" || e.key === "S") shuffleBtn.click();
+    else if (e.key === "r" || e.key === "R") readingBtn.click();
+    else if (e.key === "d" || e.key === "D") openDetails();
+  };
+  document.addEventListener("keydown", onKey);
   draw();
-  return null;
+  return () => document.removeEventListener("keydown", onKey);
 }
 
 // --- Self-test: recall → reveal → Known / Unknown --------------------------
@@ -201,7 +240,7 @@ async function renderTest(stage, pool) {
   const score = el("div", "muted");
   const slot = el("div");
   const actions = el("div", "review__controls");
-  const hint = el("p", "review-card__hint", "Space: flip · ← forgot · → got it");
+  const hint = el("p", "review-card__hint", "Space: flip · ← Unknown · → Known");
   stage.append(progress, score, slot, actions, hint);
 
   let card = null, revealed = false;

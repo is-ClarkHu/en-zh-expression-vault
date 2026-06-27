@@ -47,7 +47,11 @@
   --t: 160ms ease; /* subtle, transform/opacity only */
 
   --sidebar-w: 240px;
-  --content-max: 720px;
+  --content-max: 1480px; /* generous cap for grids/browse — NOT a reading cap */
+  --reading-max: 68ch; /* reading width belongs on prose only (v3 §12) */
+  --detail-w: 420px; /* width of the right detail panel on wide screens */
+  --card-min: 260px; /* min card column before the grid drops a column */
+  --review-card-h: 20rem; /* fixed review card height — flip never resizes (v3 §2a) */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -221,6 +225,12 @@ main#view {
   padding: var(--s5) var(--s4) var(--s6);
 }
 
+/* Reading-width is applied to PROSE only (v3 §12) — long AI text inside the
+   detail panel, not the whole layout. Browse/grid surfaces use the full width. */
+.reading-width {
+  max-width: var(--reading-max);
+}
+
 @media (min-width: 1024px) {
   .nav {
     transform: none;
@@ -234,12 +244,18 @@ main#view {
   }
   .shell {
     margin-left: var(--sidebar-w);
+    transition: margin-right var(--t);
   }
   .nav {
     width: var(--sidebar-w);
   }
   main#view {
     padding-top: var(--s6);
+  }
+  /* Opening the detail panel reserves room on the right; the card grid (auto-fill)
+     reflows to fewer columns to fit, then recovers when it closes (v3 §12). */
+  body.detail-open .shell {
+    margin-right: var(--detail-w);
   }
 }
 
@@ -335,6 +351,11 @@ input[type="radio"] {
   color: var(--ink);
   opacity: 1;
 }
+.btn--active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
 .btn--speak {
   display: inline-flex;
   align-items: center;
@@ -406,6 +427,7 @@ input[type="radio"] {
   display: grid;
   gap: var(--s5);
   grid-template-columns: 1fr 1fr;
+  max-width: 1080px; /* the capture forms are data entry — don't stretch to full width */
 }
 @media (max-width: 720px) {
   .entries {
@@ -621,6 +643,79 @@ input[type="radio"] {
   background: var(--accent-wash);
 }
 
+/* ============================================================ structure browser (v3 §2d) */
+/* master-detail: side (axis tabs + tag list) | main (toolbar + card grid).
+   Stacks on narrow; two-pane on wide. */
+.browser {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s4);
+}
+@media (min-width: 760px) {
+  .browser {
+    grid-template-columns: minmax(180px, 240px) 1fr;
+    align-items: start;
+  }
+  .browser__side {
+    position: sticky;
+    top: var(--s5);
+  }
+}
+.browser__tags {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin-top: var(--s2);
+}
+@media (max-width: 759px) {
+  .browser__tags {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+.browser__tag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: var(--s2) var(--s3);
+  transition: color var(--t), background var(--t);
+}
+.browser__tag:hover {
+  color: var(--ink);
+  background: var(--surface-lift);
+}
+.browser__tag--on {
+  color: var(--accent);
+  background: var(--accent-wash);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.browser__tag-count {
+  font-size: 0.74rem;
+  color: var(--muted);
+  background: var(--track);
+  border-radius: 999px;
+  padding: 0.02rem var(--s2);
+}
+.browser__tag--on .browser__tag-count {
+  color: var(--accent);
+  background: var(--accent-wash);
+}
+.browser__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+
 /* ============================================================ retrieve */
 .axis-bar {
   display: flex;
@@ -715,9 +810,13 @@ input[type="radio"] {
 
 /* 3D flip card (§4, borrowed from jp-flashcard). Height is set by JS to the
    taller face; faces stack via backface-hidden + a rotateY on the inner. */
+/* Fixed-size review card (v3 §2a): one height for front and back, set in CSS so
+   flipping never resizes; a face that overflows scrolls inside (faces are
+   overflow:auto) rather than growing the card. */
 .flip {
   perspective: 1200px;
   max-width: 36rem;
+  height: var(--review-card-h);
   margin: 0 auto;
   width: 100%;
 }
@@ -1068,6 +1167,167 @@ input[type="radio"] {
   color: var(--muted);
   font-size: 0.9rem;
   font-family: var(--font-cjk);
+}
+
+/* ============================================================ card grid (v3 §12) */
+/* Full-width, multi-column, fixed-size cards. auto-fill + minmax means extra
+   width becomes MORE columns, never wider/taller cards; opening the detail panel
+   shrinks the shell so this naturally reflows to fewer columns. */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+  gap: var(--s3);
+}
+
+/* A selectable card in a grid (browse/vault). Fixed height; overflow scrolls
+   inside so a long card never stretches the row (v3 §2a). */
+.grid-card {
+  cursor: pointer;
+  height: 13.5rem;
+  overflow: auto;
+  background: var(--surface);
+  background-image: linear-gradient(var(--surface-lift), var(--surface-lift));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: var(--s4);
+  transition: border-color var(--t), background var(--t);
+}
+.grid-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--hairline));
+}
+.grid-card--on {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+
+/* ============================================================ detail panel / sheet (v3 §2b) */
+.detail-panel__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.32);
+  border: 0;
+}
+.detail-panel {
+  position: fixed;
+  z-index: 60;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+.detail-panel__handle {
+  display: none; /* only the bottom sheet needs the drag handle */
+}
+.detail-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: var(--s4) var(--s4) var(--s3);
+  border-bottom: 1px solid var(--hairline);
+}
+.detail-panel__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.detail-panel__close {
+  display: inline-flex;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  padding: var(--s1);
+  cursor: pointer;
+}
+.detail-panel__close:hover {
+  color: var(--ink);
+}
+.detail-panel__body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--s4);
+}
+
+/* Wide: a persistent right side panel that slides in from the right edge. */
+@media (min-width: 1024px) {
+  .detail-panel__scrim {
+    display: none; /* the panel is non-modal beside the grid on wide screens */
+  }
+  .detail-panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--detail-w);
+    border-left: 1px solid var(--hairline);
+    transform: translateX(100%);
+    transition: transform var(--t);
+  }
+  body.detail-open .detail-panel {
+    transform: translateX(0);
+  }
+}
+
+/* Narrow: a bottom sheet that slides up; drag the handle down to dismiss. */
+@media (max-width: 1023px) {
+  .detail-panel {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 86vh;
+    border-top: 1px solid var(--hairline);
+    border-radius: 16px 16px 0 0;
+    transform: translateY(100%);
+    transition: transform var(--t);
+  }
+  body.detail-open .detail-panel {
+    transform: translateY(0);
+  }
+  .detail-panel__handle {
+    display: flex;
+    justify-content: center;
+    padding: var(--s2) 0 0;
+    touch-action: none;
+    cursor: grab;
+  }
+  .detail-panel__grip {
+    width: 2.25rem;
+    height: 0.28rem;
+    border-radius: 999px;
+    background: var(--fill);
+  }
+}
+
+/* The detail body content (shared expression-detail.js). */
+.detail__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.detail__surface {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.6rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.detail__note {
+  margin-top: var(--s4);
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--s3);
+}
+.detail__note-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  margin-bottom: var(--s1);
+}
+/* Long AI prose in the panel keeps a comfortable measure (v3 §12). */
+.detail-panel .md {
+  max-width: var(--reading-max);
 }
 
 /* ============================================================ rendered Markdown */

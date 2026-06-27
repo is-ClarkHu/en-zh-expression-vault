@@ -13,6 +13,8 @@ import { schedulePush } from "../sync/dropbox.js";
 import { renderMarkdownInto } from "../ui/markdown.js";
 import { UI } from "../ui/strings.js";
 import { embedExpression } from "../reassign/index.js";
+import { openDetail, closeDetail, isDetailOpen } from "../ui/detail-panel.js";
+import { expressionDetail } from "../ui/expression-detail.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -108,37 +110,70 @@ export function mountCapture(root) {
   entries.append(idiomaticEntry(refreshVault));
   root.append(entries);
 
-  // --- Vault list (what Save lands in) ---
+  // --- Recent grid (what Save lands in) — a BOUNDED set of the latest cards, not
+  // the whole history (v3 §6a); fixed-size cards that open the shared detail panel
+  // on click instead of dead one-liners (§6c, §12). Browse everything in Retrieve. ---
+  const RECENT_LIMIT = 12;
   const vaultSection = el("section", "vault");
-  vaultSection.append(el("h2", null, "Vault"));
-  const vaultList = el("div", "vault__list");
-  vaultSection.append(vaultList);
+  vaultSection.append(el("h2", null, "Recent"));
+  const vaultList = el("div", "card-grid");
+  const vaultMore = el("p", "muted");
+  vaultSection.append(vaultList, vaultMore);
   root.append(vaultSection);
 
+  let selectedEl = null;
+
+  // Open the full detail of a saved expression in the side panel / bottom sheet.
+  function openExpr(expr, cardEl) {
+    selectedEl?.classList.remove("grid-card--on");
+    selectedEl = cardEl;
+    cardEl.classList.add("grid-card--on");
+    const body = el("div");
+    body.append(expressionDetail(expr));
+    const del = el("button", "btn btn--ghost", "Delete");
+    del.style.marginTop = "var(--s4)";
+    del.addEventListener("click", async () => {
+      await deleteExpression(expr.id);
+      schedulePush(); // propagate the delete (tombstone) if connected
+      closeDetail();
+      refreshVault();
+    });
+    body.append(del);
+    openDetail(body, {
+      title: expr.surface,
+      onClose: () => {
+        selectedEl?.classList.remove("grid-card--on");
+        selectedEl = null;
+      },
+    });
+  }
+
   async function refreshVault() {
-    const rows = await getExpressions();
+    const all = await getExpressions();
     vaultList.innerHTML = "";
-    if (!rows.length) {
+    vaultMore.textContent = "";
+    if (!all.length) {
+      if (isDetailOpen()) closeDetail();
       vaultList.append(el("p", "muted", "Nothing saved yet. Look up or ask, then tap Save."));
       return;
     }
+    const rows = all.slice(0, RECENT_LIMIT); // bounded recent set (v3 §6a)
+    if (all.length > RECENT_LIMIT)
+      vaultMore.textContent = `Showing the ${RECENT_LIMIT} most recent of ${all.length} — browse all by topic/intent in Retrieve.`;
     for (const r of rows) {
-      const item = el("div", "vault__item");
-      const main = el("div");
-      main.append(el("span", "vault__surface", r.surface));
-      main.append(speakButton(r.surface));
-      if (r.gloss_cn) main.append(el("span", "vault__gloss", r.gloss_cn));
-      if (r.intents?.length) main.append(tagRow(null, r.intents));
-      item.append(main);
-      const del = el("button", "btn btn--ghost", "✕");
-      del.title = "Delete";
-      del.addEventListener("click", async () => {
-        await deleteExpression(r.id);
-        schedulePush(); // propagate the delete (tombstone) if connected
-        refreshVault();
+      const card = el("div", "grid-card");
+      const head = el("div", "candidate__head");
+      head.append(el("span", "candidate__surface", r.surface));
+      head.append(speakButton(r.surface));
+      if (r.register) head.append(el("span", "candidate__register", r.register));
+      card.append(head);
+      if (r.gloss_cn) card.append(el("div", "candidate__gloss", r.gloss_cn));
+      if (r.intents?.length) card.append(tagRow(null, r.intents));
+      card.addEventListener("click", (e) => {
+        if (e.target.closest("button")) return; // let the speak button work
+        openExpr(r, card);
       });
-      item.append(del);
-      vaultList.append(item);
+      vaultList.append(card);
     }
   }
   refreshVault();

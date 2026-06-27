@@ -23,6 +23,11 @@ export const UI = {
   idiomaticButton: "Get idiomatic",
   relatedLabel: "Already saved · same intent",
 
+  // detail panel / note (v3 §2b, §6)
+  noteLabel: "Note",
+  notePlaceholder: "Your own note — when, where, how you'd use it…",
+  detailHint: "Open",
+
   // deep-dive
   deepDiveLabel: "Deep-dive",
   deepDiveNoKey: "Add your provider's API key in Capture first.",
