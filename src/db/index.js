@@ -117,7 +117,7 @@ function normalizeRow(c) {
     intents: Array.isArray(c.intents) ? c.intents : [],
     embedding: c.embedding ?? null,
     qa_log: c.qa_log ?? null,
-    srs_state: null,
+    srs_state: c.srs_state ?? null, // lightweight review state (§6.2 review); preserved across re-saves
     created_at: c.created_at ?? now,
     updated_at: c.updated_at ?? now,
   };
@@ -270,6 +270,33 @@ export async function applyReassign(axisPlans) {
     }
   }
   await txDone(tx);
+}
+
+// Record a self-test answer (SPEC v2 §4 review). Lightweight, NON-coercive: a
+// "wrong book" counter (unknown ++, known --, gone at 0) plus seen/got/last_seen
+// for progress — no due dates, no scheduler, no mastery gates. Bumps updated_at
+// so review state travels on sync.
+export async function markReview(id, result) {
+  const db = await openDB();
+  const tx = db.transaction("expressions", "readwrite");
+  const store = tx.objectStore("expressions");
+  const e = await reqP(store.get(id));
+  if (e) {
+    const s = { wrong: 0, seen: 0, got: 0, last_seen: 0, ...(e.srs_state || {}) };
+    s.seen += 1;
+    s.last_seen = Date.now();
+    if (result === "known") {
+      s.got += 1;
+      s.wrong = Math.max(0, s.wrong - 1);
+    } else {
+      s.wrong += 1;
+    }
+    e.srs_state = s;
+    e.updated_at = Date.now();
+    store.put(e);
+  }
+  await txDone(tx);
+  return e?.srs_state;
 }
 
 // AI response cache (SPEC §10). Keyed by provider+model+prompt; values are the

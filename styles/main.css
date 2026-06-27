@@ -690,6 +690,69 @@ input[type="radio"] {
   margin-top: var(--s5);
   display: flex;
   justify-content: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+/* 3D flip card (§4, borrowed from jp-flashcard). Height is set by JS to the
+   taller face; faces stack via backface-hidden + a rotateY on the inner. */
+.flip {
+  perspective: 1200px;
+  max-width: 36rem;
+  margin: 0 auto;
+  width: 100%;
+}
+.flip__inner {
+  position: relative;
+  height: 100%;
+  transition: transform 200ms ease;
+  transform-style: preserve-3d;
+}
+.flip--on .flip__inner {
+  transform: rotateY(180deg);
+}
+.flip__face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  cursor: pointer;
+  background: var(--surface);
+  background-image: linear-gradient(var(--surface-lift), var(--surface-lift));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: var(--s5) var(--s4);
+}
+.flip__face--back {
+  transform: rotateY(180deg);
+}
+.flip__content {
+  width: 100%;
+}
+.flip__content--meaning {
+  text-align: left;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flip__inner {
+    transition: none;
+  }
+}
+
+.review__progress {
+  background: var(--track);
+  border-radius: 999px;
+  height: 0.35rem;
+  overflow: hidden;
+  margin-bottom: var(--s2);
+}
+.review__progress-fill {
+  background: var(--accent);
+  height: 100%;
+  transition: width var(--t);
 }
 
 /* ============================================================ deep-dive */
