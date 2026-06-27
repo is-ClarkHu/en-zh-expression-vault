@@ -72,6 +72,26 @@ Return: { "answer": string,  // the explanation they read, in Chinese
           "candidates": [ ${CARD_FIELDS}, ... ] }`;
 }
 
+// Entry C — idiomatic box (§5): a Chinese intent the speaker can't render
+// naturally → several idiomatic English renderings + the reusable keywords as
+// candidate cards (the input-side feeder for intent reverse-search).
+function idiomaticPrompt(input, existingTags) {
+  return `A Chinese speaker knows what they want to say in Chinese but can't produce idiomatic English. Given their Chinese sentence/intent:
+1. Give several idiomatic English renderings of the WHOLE thing, most natural first, each with its register and a short Chinese note on nuance/when to use it.
+2. Extract the reusable KEYWORDS (the pieces worth banking) as filled candidate cards.
+
+Chinese input: ${JSON.stringify(input)}
+
+${existingTags}
+
+${RULES}
+
+Return: {
+  "renderings": [ { "en": string, "register": "slang"|"casual"|"neutral"|"formal"|"academic"|"technical", "note_cn": string|null } ],
+  "candidates": [ ${CARD_FIELDS}, ... ]
+}`;
+}
+
 // Normalize whatever the model returns into clean candidate objects, dropping
 // anything missing a surface. example_src records the raw input that produced it.
 function normalize(candidates, exampleSrc) {
@@ -100,15 +120,26 @@ function normalize(candidates, exampleSrc) {
 
 // Entry A — quick-lookup (§3.1). No conversation; returns { candidates }.
 export async function quickLookup(term) {
-  const data = await callJSON(quickLookupPrompt(term, await existingTagsBlock()));
+  const data = await callJSON(quickLookupPrompt(term, await existingTagsBlock()), { scenario: "enrich" });
   return { candidates: normalize(data.candidates, term) };
+}
+
+// Entry C — idiomatic (§5). Returns { renderings, candidates }.
+export async function idiomatic(input) {
+  const data = await callJSON(idiomaticPrompt(input, await existingTagsBlock()), { scenario: "enrich" });
+  const renderings = Array.isArray(data.renderings)
+    ? data.renderings
+        .filter((r) => r && typeof r.en === "string" && r.en.trim())
+        .map((r) => ({ en: r.en.trim(), register: r.register || "neutral", note_cn: r.note_cn || null }))
+    : [];
+  return { renderings, candidates: normalize(data.candidates, input) };
 }
 
 // Entry B — Q&A (§3.2). Returns { answer, candidates }. Each candidate carries
 // the originating exchange as qa_log (SPEC §2.1) so it travels with the saved
 // card for deep-dives and re-encounters.
 export async function askAndExtract(input, ask) {
-  const data = await callJSON(askExtractPrompt(input, ask, await existingTagsBlock()));
+  const data = await callJSON(askExtractPrompt(input, ask, await existingTagsBlock()), { scenario: "enrich" });
   const answer = typeof data.answer === "string" ? data.answer : "";
   const qa = { q: ask || input, a: answer };
   return {

@@ -35,6 +35,20 @@ export function providerMeta(id) {
   return PROVIDERS.find((p) => p.id === id) || PROVIDERS[0];
 }
 
+// The chat scenarios that route to a provider independently (SPEC v2 §12).
+// Embedding routes via embedProvider (a different, embed-capable list).
+export const SCENARIOS = [
+  { id: "enrich", label: "Enrich (capture)" },
+  { id: "deepdive", label: "Deep-dive" },
+  { id: "reassign", label: "Reassign naming" },
+];
+
+// Resolve which provider a call should use: the scenario's pick if set, else the
+// global fallback. Keeps old single-provider configs working unchanged.
+function resolveProvider(s, scenario) {
+  return (scenario && s.scenarioProvider && s.scenarioProvider[scenario]) || s.provider || "claude";
+}
+
 async function postJSON(url, headers, body) {
   const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
@@ -98,7 +112,7 @@ async function callProvider(pid, key, model, prompt, { system, maxTokens = 1024 
 // repeated lookup / ask / deep-dive doesn't re-bill the user's key (SPEC §10).
 export async function callText(prompt, opts = {}) {
   const s = getSettings();
-  const pid = s.provider || "claude";
+  const pid = resolveProvider(s, opts.scenario);
   const key = (s.apiKeys && s.apiKeys[pid]) || "";
   if (!key) throw new Error("NO_KEY");
   const model = (s.models && s.models[pid]) || providerMeta(pid).defaultModel;

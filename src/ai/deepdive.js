@@ -26,5 +26,5 @@ export const DEEP_DIVE_KINDS = [
 export async function deepDive(expr, kind) {
   const build = PROMPTS[kind];
   if (!build) throw new Error(`unknown deep-dive kind: ${kind}`);
-  return callText(build(expr), { maxTokens: 700 });
+  return callText(build(expr), { maxTokens: 700, scenario: "deepdive" });
 }

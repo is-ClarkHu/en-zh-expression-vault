@@ -6,7 +6,7 @@
 
 import { getSettings, setSetting } from "../ai/settings.js";
 import { PROVIDERS } from "../ai/provider.js";
-import { quickLookup, askAndExtract } from "../ai/candidate.js";
+import { quickLookup, askAndExtract, idiomatic } from "../ai/candidate.js";
 import { getExpressions, saveExpression, deleteExpression } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
 import { schedulePush } from "../sync/dropbox.js";
@@ -71,37 +71,40 @@ export function mountCapture(root) {
 
   root.append(el("p", "muted", "Capture — quick-lookup or ask, then Save the cards worth keeping."));
 
-  // --- Settings bar: provider + key (local only) ---
+  // --- Settings bar: the enrich provider + its key (per-scenario routing lives
+  // on the Dashboard — this is the quick path for the provider capture uses). ---
   const s = getSettings();
+  const enrichOf = (st) => (st.scenarioProvider && st.scenarioProvider.enrich) || st.provider || "claude";
   const bar = el("section", "settings-bar");
   const select = el("select", "settings-bar__provider");
   for (const p of PROVIDERS) {
     const opt = el("option", null, p.label);
     opt.value = p.id;
-    if (p.id === s.provider) opt.selected = true;
+    if (p.id === enrichOf(s)) opt.selected = true;
     select.append(opt);
   }
   const keyInput = el("input", "settings-bar__key");
   keyInput.type = "password";
   keyInput.placeholder = "API key (stored on-device only)";
-  keyInput.value = (s.apiKeys && s.apiKeys[s.provider]) || "";
+  keyInput.value = (s.apiKeys && s.apiKeys[enrichOf(s)]) || "";
 
   select.addEventListener("change", () => {
-    setSetting("provider", select.value);
     const cur = getSettings();
+    setSetting("scenarioProvider", { ...cur.scenarioProvider, enrich: select.value });
     keyInput.value = (cur.apiKeys && cur.apiKeys[select.value]) || "";
   });
   keyInput.addEventListener("change", () => {
     const cur = getSettings();
     setSetting("apiKeys", { ...cur.apiKeys, [select.value]: keyInput.value.trim() });
   });
-  bar.append(el("span", "settings-bar__label", "Provider"), select, keyInput);
+  bar.append(el("span", "settings-bar__label", "Enrich provider"), select, keyInput);
   root.append(bar);
 
-  // --- The two capture entries ---
+  // --- The three capture entries ---
   const entries = el("div", "entries");
   entries.append(quickLookupEntry(refreshVault));
   entries.append(qaEntry(refreshVault));
+  entries.append(idiomaticEntry(refreshVault));
   root.append(entries);
 
   // --- Vault list (what Save lands in) ---
@@ -241,6 +244,64 @@ function qaEntry(onSave) {
       } else {
         nodes.push(el("p", "muted", "No keep-worthy expression extracted."));
       }
+      out.render(nodes);
+    } catch (err) {
+      out.status(errMessage(err), "error");
+    } finally {
+      go.disabled = false;
+    }
+  });
+  return panel;
+}
+
+// Entry C — idiomatic box (§5). Type a Chinese intent → idiomatic English
+// renderings (ranked, with register + nuance note) plus keyword candidate cards.
+function idiomaticEntry(onSave) {
+  const panel = el("section", "entry entry--wide");
+  panel.append(el("h2", null, "Idiomatic"));
+  panel.append(el("p", "muted", "Know the Chinese but not the natural English? Type the intent — get idiomatic renderings + keyword cards."));
+
+  const form = el("form", "entry__form entry__form--col");
+  const raw = el("textarea", "entry__textarea");
+  raw.placeholder = '中文意图，例如 "我还有3组，但力竭了，组间休息会久一点"';
+  raw.rows = 2;
+  const go = el("button", "btn", "地道说法");
+  go.type = "submit";
+  form.append(raw, go);
+  panel.append(form);
+
+  const out = makeOutput();
+  panel.append(out.node);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = raw.value.trim();
+    if (!input) return;
+    out.status("Working…");
+    go.disabled = true;
+    try {
+      const { renderings, candidates } = await idiomatic(input);
+      const nodes = [];
+      if (renderings.length) {
+        const box = el("div", "renderings");
+        box.append(el("div", "entry__cards-label", "Idiomatic renderings:"));
+        for (const r of renderings) {
+          const item = el("div", "rendering");
+          const line = el("div", "rendering__line");
+          line.append(el("span", "rendering__en", r.en));
+          line.append(speakButton(r.en));
+          if (r.register) line.append(el("span", "candidate__register", r.register));
+          item.append(line);
+          if (r.note_cn) item.append(el("div", "rendering__note", r.note_cn));
+          box.append(item);
+        }
+        nodes.push(box);
+      }
+      if (candidates.length) {
+        nodes.push(el("div", "entry__cards-label", "Keyword cards:"));
+        nodes.push(...candidates.map((c) => candidateCard(c, onSave)));
+      }
+      if (!nodes.length) return out.status("No renderings returned. Try rephrasing.");
       out.render(nodes);
     } catch (err) {
       out.status(errMessage(err), "error");

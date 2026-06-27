@@ -8,6 +8,7 @@ import { getSettings, setSetting } from "../ai/settings.js";
 import { isConnected, beginAuth, disconnect, syncNow, redirectUri, schedulePush } from "../sync/dropbox.js";
 import { enUSVoices, speak, isSupported as ttsSupported } from "../audio/tts.js";
 import { buildReassignPlan, applyReassignPlan, wordsAddedSince } from "../reassign/index.js";
+import { PROVIDERS, SCENARIOS, EMBED_PROVIDERS } from "../ai/provider.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -185,6 +186,71 @@ async function pronunciationBar() {
   return wrap;
 }
 
+// Provider list + per-scenario routing (SPEC v2 §12). Keep keys for every
+// provider you hold; route each scenario (enrich / deep-dive / reassign /
+// embedding) to whichever one you want. Keys stay on-device.
+function providersPanel() {
+  const wrap = el("section", "settings-bar");
+  wrap.append(el("span", "sync-bar__label", "Providers"));
+  const grid = el("div", "providers");
+
+  grid.append(el("h3", null, "Keys"));
+  for (const p of PROVIDERS) {
+    const row = el("div", "providers__row");
+    row.append(el("label", "providers__label", p.label));
+    const inp = el("input");
+    inp.type = "password";
+    inp.placeholder = `${p.label} API key`;
+    inp.value = (getSettings().apiKeys || {})[p.id] || "";
+    inp.addEventListener("change", () => {
+      const cur = getSettings();
+      setSetting("apiKeys", { ...cur.apiKeys, [p.id]: inp.value.trim() });
+    });
+    row.append(inp);
+    grid.append(row);
+  }
+
+  // A routing dropdown: pick which provider runs `scenario`.
+  const routeRow = (label, current, list, defaultLabel, onChange) => {
+    const row = el("div", "providers__row");
+    row.append(el("label", "providers__label", label));
+    const sel = el("select");
+    if (defaultLabel) {
+      const o = el("option", null, defaultLabel);
+      o.value = "";
+      sel.append(o);
+    }
+    for (const p of list) {
+      const o = el("option", null, p.label);
+      o.value = p.id;
+      if (p.id === current) o.selected = true;
+      sel.append(o);
+    }
+    sel.addEventListener("change", () => onChange(sel.value));
+    row.append(sel);
+    return row;
+  };
+
+  grid.append(el("h3", null, "Routing"));
+  const fallback = getSettings().provider || "claude";
+  for (const sc of SCENARIOS) {
+    grid.append(
+      routeRow(sc.label, (getSettings().scenarioProvider || {})[sc.id] || "", PROVIDERS, `Default (${fallback})`, (v) => {
+        const cur = getSettings();
+        setSetting("scenarioProvider", { ...cur.scenarioProvider, [sc.id]: v });
+      }),
+    );
+  }
+  grid.append(
+    routeRow("Embedding", getSettings().embedProvider || "openai", EMBED_PROVIDERS, null, (v) =>
+      setSetting("embedProvider", v),
+    ),
+  );
+
+  wrap.append(grid);
+  return wrap;
+}
+
 // One-click global reassign (SPEC v2 §8): re-cluster the whole vault, preview
 // every create/merge/split + word move, apply only on confirm. Live tags are a
 // provisional draft; this re-derives the authoritative grouping.
@@ -281,6 +347,7 @@ export async function mountDashboard(root) {
   root.innerHTML = "";
   root.append(el("p", "muted", "The shape of your vault — distributions, tag counts, growth."));
   root.append(dataBar(root));
+  root.append(providersPanel());
   root.append(await reassignBar(root));
   root.append(dropboxBar(root));
   root.append(await pronunciationBar());

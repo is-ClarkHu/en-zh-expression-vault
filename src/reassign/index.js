@@ -82,7 +82,7 @@ async function autoName(axis, surfaces, onStatus) {
   try {
     const txt = await callText(
       `These English expressions share one ${axis} group: ${sample}.\nGive one short lowercase-kebab-case ${axis} tag for the group (e.g. "${example}"). Reply with ONLY the tag.`,
-      { maxTokens: 24 },
+      { maxTokens: 24, scenario: "reassign" },
     );
     const name = (txt || "").trim().toLowerCase().replace(/[^a-z0-9 -]/g, "").trim().split(/\s+/)[0];
     if (name) return name;

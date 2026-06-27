@@ -5,9 +5,13 @@
 const KEY = "ev-settings";
 
 const DEFAULTS = {
-  provider: "claude", // which LLM powers ask / quick-lookup
+  provider: "claude", // fallback LLM when a scenario has no explicit pick
   apiKeys: {}, // per-provider keys, local only: { claude, openai, deepseek, ... }
   models: {}, // optional per-provider model overrides
+  // Per-scenario provider routing (SPEC v2 §12): each AI scenario picks its own
+  // provider, falling back to `provider` when unset. enrich/reassign want the
+  // cheap one, deep-dive the strong one. Embedding has its own setting below.
+  scenarioProvider: {}, // { enrich, deepdive, reassign } → provider id
   embedProvider: "openai", // which provider computes embeddings (reassign §8 / graph §11)
   embedModels: {}, // optional per-provider embedding-model overrides
   lastReassignedAt: 0, // when the global reassign last ran (local UI hint, §8)
