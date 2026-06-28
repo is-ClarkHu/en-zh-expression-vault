@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "exported_at": 1782604800000,
+  "_note": "A small, hand-made DEMO vault (fictional examples — not captured data). Loadable from Settings → Sync & data → Load sample vault, so a fresh install / the public demo shows a populated app. Tags are rebuilt from these expressions on import.",
+  "expressions": [
+    {
+      "id": "sample-get-shredded", "surface": "get shredded", "kind": "phrase", "pos": "verb phrase",
+      "reading": null, "gloss_cn": "练出清晰的肌肉线条", "intent_cn": "形容把身材练得又瘦又有线条",
+      "register": "slang", "sense_key": null, "example_src": "He got absolutely shredded this year.",
+      "example_parallel": "She trained all summer to get shredded.",
+      "topics": ["gym", "appearance"], "intents": ["describe-strong"],
+      "relations": [{ "type": "synonym", "surface": "get ripped", "register": "slang", "common": true }],
+      "note": null, "embedding": null, "created_at": 1782000000000, "updated_at": 1782000000000
+    },
+    {
+      "id": "sample-buff", "surface": "buff", "kind": "word", "pos": "adjective",
+      "reading": "/bʌf/", "gloss_cn": "健壮的、肌肉发达的", "intent_cn": "夸某人身材壮",
+      "register": "casual", "sense_key": "buff:gym", "example_src": "He got really buff over the summer.",
+      "example_parallel": "You're looking buff these days!",
+      "topics": ["gym", "appearance"], "intents": ["describe-strong", "compliment"],
+      "relations": [{ "type": "antonym", "surface": "scrawny", "register": "casual", "common": false }],
+      "note": null, "embedding": null, "created_at": 1782086400000, "updated_at": 1782086400000
+    },
+    {
+      "id": "sample-biceps", "surface": "biceps", "kind": "word", "pos": "noun",
+      "reading": "/ˈbaɪ.seps/", "gloss_cn": "二头肌", "intent_cn": "上臂前侧肌肉",
+      "register": "neutral", "sense_key": null, "example_src": "Curls mainly hit the biceps.",
+      "example_parallel": null, "topics": ["muscles", "gym"], "intents": ["name-muscle"],
+      "relations": [{ "type": "abbreviation", "surface": "bis", "register": "slang", "common": true }],
+      "note": null, "embedding": null, "created_at": 1782172800000, "updated_at": 1782172800000
+    },
+    {
+      "id": "sample-calves", "surface": "calves", "kind": "word", "pos": "noun",
+      "reading": "/kævz/", "gloss_cn": "小腿（肌）", "intent_cn": "小腿后侧肌肉",
+      "register": "neutral", "sense_key": null, "example_src": "Don't skip calves on leg day.",
+      "example_parallel": null, "topics": ["muscles", "gym"], "intents": ["name-muscle"],
+      "relations": [], "note": null, "embedding": null, "created_at": 1782259200000, "updated_at": 1782259200000
+    },
+    {
+      "id": "sample-sesh", "surface": "sesh", "kind": "word", "pos": "noun",
+      "reading": null, "gloss_cn": "一节（训练等）", "intent_cn": "session 的随意缩写",
+      "register": "slang", "sense_key": null, "example_src": "Quick leg sesh before work.",
+      "example_parallel": null, "topics": ["gym", "daily"], "intents": ["refer-to-session"],
+      "relations": [{ "type": "abbreviation", "surface": "session", "register": "neutral", "common": false }],
+      "note": "gym/social slang; 'session' is the full, neutral form", "embedding": null,
+      "created_at": 1782345600000, "updated_at": 1782345600000
+    },
+    {
+      "id": "sample-engage", "surface": "engage one's [body part]", "kind": "pattern", "pos": "pattern",
+      "reading": null, "gloss_cn": "绷紧/启动某个身体部位", "intent_cn": "发力时收紧某个身体部位",
+      "register": "neutral", "sense_key": null, "example_src": "Engage your core before you lift.",
+      "example_parallel": "engage your core — 收紧核心", "topics": ["gym"], "intents": ["instruct-form"],
+      "relations": [], "note": null, "embedding": null, "created_at": 1782432000000, "updated_at": 1782432000000
+    },
+    {
+      "id": "sample-hairline", "surface": "hairline", "kind": "word", "pos": "noun",
+      "reading": null, "gloss_cn": "发际线", "intent_cn": "额头与头发的分界",
+      "register": "neutral", "sense_key": null, "example_src": "His hairline is starting to recede.",
+      "example_parallel": null, "topics": ["hair", "appearance"], "intents": ["describe-appearance"],
+      "relations": [], "note": null, "embedding": null, "created_at": 1782518400000, "updated_at": 1782518400000
+    },
+    {
+      "id": "sample-hair-transplant", "surface": "hair transplant", "kind": "phrase", "pos": "noun",
+      "reading": null, "gloss_cn": "植发", "intent_cn": "把毛囊移植到脱发区域的手术",
+      "register": "neutral", "sense_key": null, "example_src": "You can barely tell he got a hair transplant.",
+      "example_parallel": null, "topics": ["hair", "appearance"], "intents": ["describe-procedure"],
+      "relations": [], "note": null, "embedding": null, "created_at": 1782518400000, "updated_at": 1782518400000
+    },
+    {
+      "id": "sample-call-it-a-day", "surface": "call it a day", "kind": "phrase", "pos": "idiom",
+      "reading": null, "gloss_cn": "今天到此为止、收工", "intent_cn": "决定停止当前活动",
+      "register": "casual", "sense_key": null, "example_src": "We've done enough — let's call it a day.",
+      "example_parallel": "My knee hurts, I'm going to call it a day.",
+      "topics": ["daily", "work"], "intents": ["end-activity"],
+      "relations": [], "note": null, "embedding": null, "created_at": 1782604800000, "updated_at": 1782604800000
+    },
+    {
+      "id": "sample-all-nighter", "surface": "pull an all-nighter", "kind": "phrase", "pos": "verb phrase",
+      "reading": null, "gloss_cn": "通宵", "intent_cn": "熬整夜做某事",
+      "register": "casual", "sense_key": null, "example_src": "I pulled an all-nighter to finish the deck.",
+      "example_parallel": null, "topics": ["daily", "work"], "intents": ["describe-activity"],
+      "relations": [], "note": null, "embedding": null, "created_at": 1782604800000, "updated_at": 1782604800000
+    },
+    {
+      "id": "sample-reach-out", "surface": "reach out", "kind": "phrase", "pos": "verb phrase",
+      "reading": null, "gloss_cn": "（主动）联系、求助", "intent_cn": "主动联系某人",
+      "register": "neutral", "sense_key": null, "example_src": "Feel free to reach out if you have questions.",
+      "example_parallel": null, "topics": ["work", "communication"], "intents": ["initiate-contact"],
+      "relations": [], "note": null, "embedding": null, "created_at": 1782604800000, "updated_at": 1782604800000
+    },
+    {
+      "id": "sample-perilla", "surface": "perilla", "kind": "word", "pos": "noun",
+      "reading": "/pəˈrɪlə/", "gloss_cn": "紫苏", "intent_cn": "一种常见于东亚料理的香草",
+      "register": "neutral", "sense_key": null, "example_src": "Wrap the pork in a perilla leaf.",
+      "example_parallel": null, "topics": ["food"], "intents": ["name-ingredient"],
+      "relations": [], "note": null, "embedding": null, "created_at": 1782604800000, "updated_at": 1782604800000
+    }
+  ],
+  "tags": [],
+  "edges": [],
+  "tombstones": []
+}

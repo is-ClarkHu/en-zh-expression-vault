@@ -20,7 +20,7 @@ sync stay under your own accounts. No ads, no login, no server we run.
 
 ## Tech stack
 
-- **App** — [Vite](https://vitejs.dev) + vanilla JS. Local store is IndexedDB, designed sync-friendly (stable `id` + `updated_at`). No build-time data.
+- **App** — [Vite](https://vitejs.dev) + vanilla JS. Local store is IndexedDB, designed sync-friendly (stable `id` + `updated_at`). No personal data is bundled — only a tiny fictional demo vault you can load from **Settings → Sync & data → Load sample vault**.
 - **Batch tool** — `tools/recluster.py`, the only periodic step: tag merge/split + auto-naming + embedding/edge refresh (see below).
 
 ## Run locally
@@ -40,7 +40,8 @@ This is a **static site** — `npm run build` emits `dist/`, which any static ho
 serves. `vite.config.js` uses a relative `base` so it works from a subpath.
 
 - **GitHub Pages** — build and publish `dist/` (e.g. a `gh-pages` branch or a
-  Pages Action). Only the app code is served; no vault data is ever bundled.
+  Pages Action). Only the app code (plus the tiny fictional demo vault) is
+  served; no personal or captured data is ever bundled.
 - **Netlify / Vercel / Cloudflare Pages** — point them at the repo with build
   `npm run build` and output dir `dist`.
 

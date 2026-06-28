@@ -16,6 +16,7 @@ import { buildReassignPlan, applyReassignPlan, wordsAddedSince, DEFAULT_THRESHOL
 import { cosine } from "../reassign/cluster.js";
 import { PROVIDERS, SCENARIOS, EMBED_PROVIDERS } from "../ai/provider.js";
 import { setTheme } from "../ui/theme.js";
+import sampleVault from "../../data/sample/vault.json"; // small fictional demo vault
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -417,7 +418,24 @@ function dataBar(root) {
     }
   });
 
-  bar.append(exp, imp, file);
+  // Load the small fictional demo vault (data/sample) so a fresh install / the
+  // public demo can show a populated app. Opt-in and non-destructive (merge).
+  const sample = el("button", "btn btn--ghost", "Load sample vault");
+  sample.addEventListener("click", async () => {
+    const existing = await getExpressions();
+    if (existing.length && !confirm("Merge a small demo vault into your data?")) return;
+    sample.disabled = true;
+    try {
+      await importVault(sampleVault);
+      alert(`Loaded ${sampleVault.expressions.length} sample expressions — explore Retrieve, Review, Graph.`);
+    } catch (e) {
+      alert(`Couldn't load sample: ${e.message}`);
+    } finally {
+      sample.disabled = false;
+    }
+  });
+
+  bar.append(exp, imp, sample, file);
   return bar;
 }
 
