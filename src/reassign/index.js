@@ -10,9 +10,9 @@
 // network is the embedding API (for words missing a vector) + auto-naming.
 
 import { getExpressions, getTags, setEmbedding, applyReassign } from "../db/index.js";
-import { embedTexts, callText } from "../ai/provider.js";
+import { embedTexts, callText, callJSON } from "../ai/provider.js";
 import { getSettings, setSetting } from "../ai/settings.js";
-import { clusterByThreshold, planAxis } from "./cluster.js";
+import { planAxis } from "./cluster.js";
 
 const AXES = [
   ["topic", "topics"],
@@ -103,39 +103,86 @@ function provenance(axis, c) {
   return base; // new
 }
 
+// LLM-driven grouping (v3): instead of embedding-cosine connected-components
+// (which only merges near-duplicates), the AI reads the whole axis at once — each
+// word with its Chinese gloss and current tag — and returns a clean taxonomy,
+// assigning EVERY word to one group. This groups thematically the way a person
+// would (hairline / hair transplant / hairwork → "hair"; biceps / calves /
+// triceps → "muscles"), which the cosine threshold could never reach. Returns
+// clusters (id arrays) + a parallel array of the AI's group names.
+async function groupByLLM(axis, members, field, onStatus) {
+  const list = members
+    .map((e, i) => `${i + 1}. ${e.surface}${e.gloss_cn ? ` (${e.gloss_cn})` : ""}${e[field]?.length ? ` [now: ${e[field].join(", ")}]` : ""}`)
+    .join("\n");
+  const guidance = axis === "topic"
+    ? `Group by BROAD SUBJECT AREA. Prefer FEWER, LARGER groups over many fine ones. Put every word sharing a main theme or head-noun in ONE group, even when their exact function differs:
+- "hairline", "hair transplant", "hairwork", "plugs" all concern HAIR → one "hair" group (do NOT split off "cosmetic-procedures").
+- every muscle name ("biceps","calves","triceps","quadriceps","hamstrings","deltoids","pecs") → one "muscles" group (do NOT split "leg-muscles" vs others).
+Never split a single theme into sub-functions. A word stands alone ONLY if it truly shares a theme with nothing else.`
+    : `Group by COMMUNICATIVE INTENT — what the speaker is doing (e.g. describe-strong, name-body-part, give-instruction, end-activity). Prefer fewer, broader intents; merge near-duplicates.`;
+  onStatus?.(`Grouping ${members.length} word(s) by ${axis}…`);
+
+  const prompt = `Organize a Chinese learner's English vocabulary by ${axis}. ${guidance}
+
+Assign EVERY item below to exactly one ${axis} group. Reuse a current tag name when it still fits; MERGE clearly-related or near-duplicate tags into one well-named group. Group names: short lowercase-kebab-case. Bias toward MERGING related words rather than creating new narrow groups.
+
+Items:
+${list}
+
+Return ONLY JSON: { "assignments": [ { "n": <item number>, "group": "<kebab-name>" } ] } — exactly one entry per item.`;
+
+  const data = await callJSON(prompt, { scenario: "reassign", maxTokens: Math.min(8000, 500 + members.length * 25) });
+  const groups = new Map(); // name -> [ids]
+  for (const a of data.assignments || []) {
+    const e = members[(a.n || 0) - 1];
+    const name = kebab(a.group);
+    if (!e || !name) continue;
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(e.id);
+  }
+  // Any item the AI skipped becomes its own group (keep its current tag, else a
+  // kebab of the surface) so nothing is silently dropped.
+  const assigned = new Set([...groups.values()].flat());
+  for (const e of members) {
+    if (assigned.has(e.id)) continue;
+    const name = kebab(e[field]?.[0] || e.surface);
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(e.id);
+  }
+  return { clusters: [...groups.values()], names: [...groups.keys()] };
+}
+
 // Build the full reassign preview + an apply-ready plan, without writing anything.
-export async function buildReassignPlan({ threshold = DEFAULT_THRESHOLD, onStatus } = {}) {
+// Grouping is LLM-driven (no embeddings needed); the kept/merged/split/new diff,
+// provenance, moves, and preview are reused from the embedding path.
+export async function buildReassignPlan({ onStatus } = {}) {
   const all = await getExpressions();
-  await ensureEmbeddingsFor(all, onStatus); // fills .embedding in place
   const surf = (id) => all.find((e) => e.id === id)?.surface || id;
 
-  const preview = { threshold, axes: {} };
+  const preview = { axes: {} };
   const applyPlan = {};
 
   for (const [axis, field] of AXES) {
-    // A tagged word that has no embedding would be silently dropped (and lose its
-    // tag on apply) — refuse rather than corrupt the grouping.
-    const stranded = all.filter((e) => hasTag(e, field) && !hasVec(e));
-    if (stranded.length) {
-      const err = new Error(`${stranded.length} tagged word(s) have no embedding — set an embedding provider key, or run recluster.py once, then retry.`);
-      err.code = "NO_EMBEDDINGS";
-      throw err;
+    const oldTags = await getTags(axis);
+    const members = all.filter((e) => hasTag(e, field));
+    if (!members.length) {
+      preview.axes[axis] = { oldCount: oldTags.length, newCount: 0, changed: 0, moves: [], classes: [] };
+      applyPlan[axis] = [];
+      continue;
     }
 
-    const oldTags = await getTags(axis);
-    const members = all.filter((e) => hasTag(e, field) && hasVec(e));
-    const clusters = clusterByThreshold(members.map((e) => ({ id: e.id, vec: e.embedding })), threshold);
+    const { clusters, names } = await groupByLLM(axis, members, field, onStatus);
     const plan = planAxis(clusters, oldTags.map((t) => ({ name: t.name, member_ids: t.member_ids })));
 
-    // Name new/split classes (kept/merged keep the dominant old name); dedupe.
+    // Use the AI's name for restructured groups; keep the old name for groups that
+    // are unchanged (status "kept"), so stable tags don't churn needlessly.
     const used = new Set();
-    const classes = [];
-    for (const cls of plan) {
-      let name = cls.name || (await autoName(axis, cls.members.map(surf), onStatus));
-      name = uniqueName(name, used);
+    const classes = plan.map((cls, i) => {
+      const proposed = cls.status === "kept" ? cls.name : (names[i] || cls.name || kebab(surf(cls.members[0])));
+      const name = uniqueName(proposed, used);
       used.add(name);
-      classes.push({ ...cls, name });
-    }
+      return { ...cls, name };
+    });
     applyPlan[axis] = classes.map((c) => provenance(axis, c));
 
     // Word moves: any word whose authoritative class differs from its old tag(s).

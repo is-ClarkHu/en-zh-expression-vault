@@ -273,12 +273,9 @@ async function reassignBar(root) {
       status.textContent = "";
       renderReassignPreview(panel, preview, applyPlan, root);
     } catch (e) {
-      const msg =
-        e.code === "NO_EMBEDDINGS"
-          ? e.message
-          : e.message === "NO_EMBED_KEY"
-            ? "Set an embedding-provider API key (OpenAI/Gemini/Mistral) under Providers first."
-            : `Reassign failed: ${e.message}`;
+      const msg = e.message === "NO_KEY"
+        ? "Set the reassign provider's API key under Providers above first."
+        : `Reassign failed: ${e.message}`;
       panel.append(el("p", "error", msg));
     } finally {
       go.disabled = false;
