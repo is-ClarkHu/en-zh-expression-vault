@@ -111,28 +111,27 @@ async function migrateLegacy(db) {
   localStorage.removeItem(LEGACY_KEY);
 }
 
-// One-time pass that canonicalizes every stored expression's tags and rebuilds
-// the tag index, so pre-existing variant tags ("describe strong" / "Describe-
-// Strong") collapse into one (v3 §9). Guarded by a flag so it runs once.
-const CANON_FLAG = "ev-tags-canon-v1";
-async function migrateCanonicalizeTags(db) {
-  if (localStorage.getItem(CANON_FLAG)) return;
-  const tx = db.transaction(["expressions", "tags"], "readwrite");
-  const exprStore = tx.objectStore("expressions");
-  const tagStore = tx.objectStore("tags");
-  const all = await reqP(exprStore.getAll());
+// Rebuild the WHOLE tag index from the expressions (the source of truth), and
+// canonicalize each expression's tag tokens while we're at it. The derived tag
+// store can drift out of sync (a stale import / recluster, or a partial write),
+// leaving a tag with fewer member_ids than the expressions that actually carry
+// it — e.g. 7 words tagged "describe-strong" but the tag listing only 1. This
+// recomputes it from scratch so the index always matches the data (v3 §9).
+//
+// Split into a READ phase and a WRITE phase (each its own transaction) so there
+// is never a long await-chain inside one readwrite txn — that can let IndexedDB
+// auto-commit mid-rebuild and silently drop writes.
+async function rebuildTagIndexOn(db) {
+  const all = await reqP(db.transaction("expressions").objectStore("expressions").getAll());
 
-  for (const t of await reqP(tagStore.getAll())) tagStore.delete(t.id); // rebuild from scratch
-  const members = new Map(); // `${axis}:${name}` -> { axis, name, set }
+  const members = new Map(); // `${axis}:${name}` -> { axis, name, set<id> }
+  const updates = []; // expressions whose stored tokens weren't canonical
   for (const e of all) {
     const topics = canonTags(e.topics);
     const intents = canonTags(e.intents);
     if (JSON.stringify(topics) !== JSON.stringify(e.topics || []) ||
         JSON.stringify(intents) !== JSON.stringify(e.intents || [])) {
-      e.topics = topics;
-      e.intents = intents;
-      e.updated_at = Date.now();
-      exprStore.put(e);
+      updates.push({ ...e, topics, intents, updated_at: Date.now() });
     }
     for (const [axis, name] of [...topics.map((n) => ["topic", n]), ...intents.map((n) => ["intent", n])]) {
       const id = `${axis}:${name}`;
@@ -140,9 +139,31 @@ async function migrateCanonicalizeTags(db) {
       members.get(id).set.add(e.id);
     }
   }
+
+  const tx = db.transaction(["expressions", "tags"], "readwrite");
+  const exprStore = tx.objectStore("expressions");
+  const tagStore = tx.objectStore("tags");
+  const existing = await reqP(tagStore.getAll());
+  for (const t of existing) tagStore.delete(t.id); // clear, then rebuild from members
+  for (const u of updates) exprStore.put(u);
   for (const [id, m] of members)
     tagStore.put({ id, axis: m.axis, name: m.name, member_ids: [...m.set], prev_tag_id: null, merged_from: null, split_from: null });
   await txDone(tx);
+  return { tags: members.size, expressionsFixed: updates.length };
+}
+
+// Public, re-runnable repair (wired to a Settings button) — anyone can rebuild
+// the index on demand if it ever looks off.
+export async function rebuildTagIndex() {
+  return rebuildTagIndexOn(await openDB());
+}
+
+// Run the rebuild once per flag version on open, so existing corrupted/uncanonical
+// indexes get repaired automatically. Bump the version to force a one-time re-run.
+const CANON_FLAG = "ev-tags-canon-v2";
+async function migrateCanonicalizeTags(db) {
+  if (localStorage.getItem(CANON_FLAG)) return;
+  await rebuildTagIndexOn(db);
   localStorage.setItem(CANON_FLAG, "1");
 }
 
@@ -434,8 +455,10 @@ export async function exportVault() {
 // each id, the event with the greatest timestamp wins — an upsert's updated_at
 // vs a deletion's deleted_at. So adds union, the later edit of the same record
 // wins, and a delete propagates (and isn't resurrected by a stale copy).
-// Tags/edges are coarse-replaced from the incoming file (recluster regenerates
-// them; live re-save rebuilds the tag index).
+// Edges are coarse-replaced from the incoming file, but the TAG index is rebuilt
+// from the merged expressions afterwards rather than trusted from the file — a
+// stale/inconsistent tag set in an export (or from recluster) must not poison the
+// local index (this was the source of out-of-sync member counts).
 export async function importVault(data) {
   const db = await openDB();
   const tx = db.transaction(["expressions", "tags", "edges", "tombstones"], "readwrite");
@@ -463,7 +486,6 @@ export async function importVault(data) {
     if (!localTomb || delT >= localTomb.deleted_at) tombStore.put({ id, deleted_at: delT });
   }
 
-  for (const tag of data.tags || []) tx.objectStore("tags").put(tag);
   for (const edge of data.edges || []) tx.objectStore("edges").put(edge);
 
   // Prune deletion markers past the retention window so they don't grow forever.
@@ -472,4 +494,5 @@ export async function importVault(data) {
     if ((tb.deleted_at || 0) < cutoff) tombStore.delete(tb.id);
   }
   await txDone(tx);
+  await rebuildTagIndexOn(db); // derive the tag index from the merged expressions
 }

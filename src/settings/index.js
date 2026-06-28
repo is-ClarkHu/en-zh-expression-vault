@@ -8,7 +8,7 @@
 //   Sync            Dropbox connect/status + manual export/import
 // Each block reuses the existing control-bar styling for consistency.
 
-import { exportVault, importVault, getExpressions } from "../db/index.js";
+import { exportVault, importVault, getExpressions, rebuildTagIndex } from "../db/index.js";
 import { getSettings, setSetting } from "../ai/settings.js";
 import { isConnected, beginAuth, disconnect, syncNow, redirectUri, schedulePush } from "../sync/dropbox.js";
 import { enUSVoices, speak, isSupported as ttsSupported } from "../audio/tts.js";
@@ -229,6 +229,31 @@ async function relatednessDiagnostic() {
   return wrap;
 }
 
+// --- Rebuild the tag index (repair) ----------------------------------------
+function rebuildBar(root) {
+  const wrap = el("div", "settings-bar");
+  wrap.append(el("span", "sync-bar__label", "Tag index"));
+  wrap.append(el("span", "muted", "Recompute the topic/intent index from your cards — fixes a tag showing the wrong count."));
+  const btn = el("button", "btn btn--ghost", "Rebuild tag index");
+  const status = el("span", "muted");
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = "Rebuilding…";
+    try {
+      const r = await rebuildTagIndex();
+      status.textContent = `Rebuilt ${r.tags} tags${r.expressionsFixed ? `, normalized ${r.expressionsFixed} card(s)` : ""}.`;
+    } catch (e) {
+      status.textContent = `Failed: ${e.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  });
+  wrap.append(btn, status);
+  return wrap;
+}
+
 // --- Organize / reassign ---------------------------------------------------
 async function reassignBar(root) {
   const wrap = el("section", "settings-bar");
@@ -409,6 +434,7 @@ export async function mountSettings(root) {
   page.append(section("Providers", "Per-provider keys (stored on-device) and which provider runs each AI scenario.", providersPanel()));
   page.append(section("Pronunciation", "Choose the en-US voice used to speak expressions.", await pronunciationBar()));
   const organize = section("Organize", "Re-cluster the whole vault into authoritative topic/intent groups, with a preview before anything changes.");
+  organize.append(rebuildBar(root));
   organize.append(await relatednessDiagnostic());
   organize.append(await reassignBar(root));
   page.append(organize);

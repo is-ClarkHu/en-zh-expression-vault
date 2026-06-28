@@ -4,6 +4,8 @@ raw_capture/
 *.vault.json
 *.vault.sqlite
 *-vault-export-*.json
+vault-*.json
+docs/vault-*.json
 
 # --- Generated / derived data (regenerable; not a runtime dependency) ---
 # Only the small public demo vault under data/sample/ is committed.
