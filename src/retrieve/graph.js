@@ -17,6 +17,7 @@ import { getExpressions, getExpressionsByTag, getTags, getEdges, putEdges } from
 import { cosine } from "../reassign/cluster.js";
 import { ensureEmbeddingsFor } from "../reassign/index.js";
 import { findRelations } from "../ai/relations.js";
+import { setRange, getRange } from "./range.js";
 import { UI } from "../ui/strings.js";
 
 const REGISTERS = ["slang", "casual", "neutral", "formal", "academic", "technical"];
@@ -118,6 +119,50 @@ function fit(pos) {
   return pos.map((p) => ({ x: sx(p.x), y: sy(p.y) }));
 }
 
+// Scroll/pinch to zoom, drag to pan — a small hand-rolled equivalent of d3.zoom
+// (the project avoids the dependency, like the force layout). Transforms a <g>
+// viewport so nodes/edges move together; the view persists on `state` so the
+// threshold slider's redraw keeps your zoom. Returns whether the last gesture
+// was a pan (so a node click can be ignored after a drag).
+function attachZoomPan(svg, vp, state) {
+  const view = state._view || (state._view = { k: 1, tx: 0, ty: 0 });
+  const apply = () => vp.setAttribute("transform", `translate(${view.tx} ${view.ty}) scale(${view.k})`);
+  apply();
+  const toLocal = (ev) => {
+    const r = svg.getBoundingClientRect();
+    return { x: ((ev.clientX - r.left) / r.width) * W, y: ((ev.clientY - r.top) / r.height) * H };
+  };
+  svg.addEventListener("wheel", (ev) => {
+    ev.preventDefault();
+    const m = toLocal(ev);
+    const factor = ev.deltaY < 0 ? 1.12 : 1 / 1.12;
+    const k = Math.min(8, Math.max(0.5, view.k * factor));
+    view.tx = m.x - ((m.x - view.tx) / view.k) * k; // keep the point under the cursor fixed
+    view.ty = m.y - ((m.y - view.ty) / view.k) * k;
+    view.k = k;
+    apply();
+  }, { passive: false });
+
+  let pan = null;
+  svg.addEventListener("pointerdown", (ev) => {
+    pan = { x: ev.clientX, y: ev.clientY, tx: view.tx, ty: view.ty };
+    state._panMoved = false;
+    svg.setPointerCapture(ev.pointerId);
+  });
+  svg.addEventListener("pointermove", (ev) => {
+    if (!pan) return;
+    const r = svg.getBoundingClientRect();
+    if (Math.hypot(ev.clientX - pan.x, ev.clientY - pan.y) > 4) state._panMoved = true;
+    view.tx = pan.tx + ((ev.clientX - pan.x) / r.width) * W;
+    view.ty = pan.ty + ((ev.clientY - pan.y) / r.height) * H;
+    apply();
+  });
+  const end = () => { pan = null; };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+  svg.addEventListener("dblclick", () => { view.k = 1; view.tx = 0; view.ty = 0; apply(); }); // reset
+}
+
 export async function mountGraph(root) {
   root.innerHTML = "";
   root.append(el("p", "muted", "Map the vault: pick a range, tap Generate. Edges and layout are computed live from each word's embedding — drag the threshold to tune how densely they connect."));
@@ -143,9 +188,10 @@ export async function mountGraph(root) {
 
   const lassoCtl = el("div", "graph-controls");
   lassoCtl.hidden = true;
-  lassoCtl.append(el("span", "muted", "Drag a box over the thumbnail to select a patch, then Generate."));
+  lassoCtl.append(el("span", "muted", "Drag a box over the thumbnail to select a patch — releasing generates it."));
+  const lassoInfo = el("span", "muted");
   const lassoStage = el("div", "graph__thumb");
-  lassoCtl.append(lassoStage);
+  lassoCtl.append(lassoInfo, lassoStage);
   root.append(lassoCtl);
 
   // threshold slider (acts live once a graph is generated)
@@ -198,6 +244,19 @@ export async function mountGraph(root) {
   axisSel.addEventListener("change", fillValues);
   await fillValues();
 
+  // If retrieve already focused a slice, default the graph filter to the same
+  // one (the shared range model — range.js), so the selection carries over.
+  async function preselectFromRange() {
+    const r = getRange();
+    if (!r || r.kind === "all" || r.kind === "ids") return;
+    if (r.kind === "tag") axisSel.value = r.axis;
+    else axisSel.value = r.kind; // "register" | "recent"
+    await fillValues();
+    const want = r.kind === "recent" ? String(r.n) : r.name;
+    if ([...valueSel.options].some((o) => o.value === want)) valueSel.value = want;
+  }
+  await preselectFromRange();
+
   async function gatherFilter() {
     const axis = axisSel.value, val = valueSel.value;
     if (!val || val.startsWith("—")) return [];
@@ -209,8 +268,18 @@ export async function mountGraph(root) {
     return getExpressionsByTag(axis, val);
   }
 
+  // The current filter selection as a shared-range descriptor (range.js).
+  function filterRange() {
+    const axis = axisSel.value, val = valueSel.value;
+    if (!val || val.startsWith("—")) return null;
+    if (axis === "recent") return val === "all" ? { kind: "all" } : { kind: "recent", n: +val };
+    if (axis === "register") return { kind: "register", name: val };
+    return { kind: "tag", axis, name: val };
+  }
+
   // --- generate from a set of expressions -----------------------------------
-  async function generate(exprs) {
+  async function generate(exprs, range) {
+    if (range) setRange(range); // share the focused slice with retrieve (range.js)
     detail.className = "graph__detail muted";
     detail.textContent = "Click a node to see its card.";
     if (!exprs.length) {
@@ -262,8 +331,10 @@ export async function mountGraph(root) {
     };
 
     const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "graph__svg" });
+    const vp = svgEl("g", { class: "graph__viewport" }); // everything zoom/pan moves together
+    svg.append(vp);
     for (const e of edges) {
-      svg.append(svgEl("line", {
+      vp.append(svgEl("line", {
         x1: pos[e.a].x, y1: pos[e.a].y, x2: pos[e.b].x, y2: pos[e.b].y,
         stroke: "currentColor", "stroke-opacity": 0.16, "stroke-width": 1,
       }));
@@ -274,21 +345,46 @@ export async function mountGraph(root) {
       const a = idx.get(te.from_id), b = idx.get(te.to_id);
       if (a == null || b == null) continue;
       const st = REL_STYLE[te.type] || REL_STYLE.synonym;
-      svg.append(svgEl("line", {
+      vp.append(svgEl("line", {
         x1: pos[a].x, y1: pos[a].y, x2: pos[b].x, y2: pos[b].y,
         stroke: st.stroke, "stroke-opacity": 0.85, "stroke-width": 1.5, "stroke-dasharray": st.dash,
       }));
     }
+
+    // The SVG sits in a positioned canvas so the hover tooltip can overlay it.
+    const canvas = el("div", "graph__canvas");
+    const tip = el("div", "graph__tooltip");
+    tip.hidden = true;
+    const placeTip = (ev) => {
+      const r = canvas.getBoundingClientRect();
+      tip.style.left = `${ev.clientX - r.left + 12}px`;
+      tip.style.top = `${ev.clientY - r.top + 12}px`;
+    };
+
     for (let i = 0; i < exprs.length; i++) {
-      const c = svgEl("circle", { cx: pos[i].x, cy: pos[i].y, r: 6, fill: color(exprs[i]), class: "graph__node" });
-      const title = svgEl("title", {});
-      title.textContent = `${exprs[i].surface}${exprs[i].gloss_cn ? " — " + exprs[i].gloss_cn : ""}`;
-      c.append(title);
-      c.addEventListener("click", () => showDetail(exprs[i]));
-      svg.append(c);
+      const ex = exprs[i];
+      const c = svgEl("circle", { cx: pos[i].x, cy: pos[i].y, r: 6, fill: color(ex), class: "graph__node" });
+      c.addEventListener("mouseenter", (ev) => {
+        tip.innerHTML = "";
+        const h = el("div", "graph__tip-head");
+        h.append(el("span", "graph__tip-surface", ex.surface));
+        if (ex.pos) h.append(el("span", "graph__tip-pos", ex.pos));
+        tip.append(h);
+        if (ex.gloss_cn) tip.append(el("div", "graph__tip-gloss", ex.gloss_cn));
+        const tags = [...(ex.topics || []), ...(ex.intents || [])].slice(0, 3);
+        if (tags.length) tip.append(el("div", "graph__tip-tags", tags.join(" · ")));
+        tip.hidden = false;
+        placeTip(ev);
+      });
+      c.addEventListener("mousemove", placeTip);
+      c.addEventListener("mouseleave", () => { tip.hidden = true; });
+      c.addEventListener("click", () => { if (!current._panMoved) showDetail(ex); });
+      vp.append(c);
     }
+    canvas.append(svg, tip);
     stage.innerHTML = "";
-    stage.append(svg);
+    stage.append(canvas);
+    attachZoomPan(svg, vp, current);
 
     const legend = el("div", "graph__legend");
     topics.forEach((t, i) => {
@@ -314,7 +410,7 @@ export async function mountGraph(root) {
       }
       stage.append(rl);
     }
-    stage.append(el("p", "muted", `${exprs.length} nodes · ${edges.length} edges at cosine ≥ ${threshold.toFixed(2)}`));
+    stage.append(el("p", "muted", `${exprs.length} nodes · ${edges.length} edges at cosine ≥ ${threshold.toFixed(2)} · scroll to zoom, drag to pan, double-click to reset`));
   }
 
   function showDetail(e) {
@@ -375,7 +471,7 @@ export async function mountGraph(root) {
   genBtn.addEventListener("click", async () => {
     genBtn.disabled = true;
     try {
-      await generate(await gatherFilter());
+      await generate(await gatherFilter(), filterRange());
     } finally {
       genBtn.disabled = false;
     }
@@ -438,13 +534,17 @@ export async function mountGraph(root) {
       box.removeAttribute("hidden");
       svg.setPointerCapture(ev.pointerId);
     });
+    const inBox = (x0, y0, x1, y1) => exprs.filter((_, i) => pos[i].x >= x0 && pos[i].x <= x1 && pos[i].y >= y0 && pos[i].y <= y1);
     svg.addEventListener("pointermove", (ev) => {
       if (!start) return;
       const p = toSvg(ev);
-      box.setAttribute("x", Math.min(start.x, p.x));
-      box.setAttribute("y", Math.min(start.y, p.y));
-      box.setAttribute("width", Math.abs(p.x - start.x));
-      box.setAttribute("height", Math.abs(p.y - start.y));
+      const x0 = Math.min(start.x, p.x), y0 = Math.min(start.y, p.y);
+      const x1 = Math.max(start.x, p.x), y1 = Math.max(start.y, p.y);
+      box.setAttribute("x", x0);
+      box.setAttribute("y", y0);
+      box.setAttribute("width", x1 - x0);
+      box.setAttribute("height", y1 - y0);
+      lassoInfo.textContent = `${inBox(x0, y0, x1, y1).length} selected`; // live feedback
     });
     svg.addEventListener("pointerup", (ev) => {
       if (!start) return;
@@ -453,8 +553,9 @@ export async function mountGraph(root) {
       const y0 = Math.min(start.y, p.y), y1 = Math.max(start.y, p.y);
       start = null;
       box.setAttribute("hidden", "");
-      const picked = exprs.filter((_, i) => pos[i].x >= x0 && pos[i].x <= x1 && pos[i].y >= y0 && pos[i].y <= y1);
-      if (picked.length) generate(picked);
+      const picked = inBox(x0, y0, x1, y1);
+      lassoInfo.textContent = picked.length ? `${picked.length} selected` : "Nothing in that box — try again.";
+      if (picked.length) generate(picked, { kind: "ids", ids: picked.map((e) => e.id), label: "Lasso patch" });
     });
   }
 }

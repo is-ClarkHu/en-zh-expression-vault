@@ -984,6 +984,9 @@ input[type="radio"] {
   width: 100%;
   margin-top: var(--s2);
 }
+.graph__canvas {
+  position: relative; /* anchor for the hover tooltip overlay */
+}
 .graph__svg {
   width: 100%;
   height: auto;
@@ -991,6 +994,46 @@ input[type="radio"] {
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   color: var(--ink);
+}
+.graph__svg:not(.graph__svg--thumb) {
+  cursor: grab;
+  touch-action: none; /* let pointer drag pan instead of scrolling the page */
+}
+.graph__svg:not(.graph__svg--thumb):active {
+  cursor: grabbing;
+}
+.graph__tooltip {
+  position: absolute;
+  z-index: 5;
+  max-width: 16rem;
+  padding: var(--s2) var(--s3);
+  pointer-events: none; /* never intercept the hover it describes */
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  font-size: 0.85rem;
+}
+.graph__tip-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+}
+.graph__tip-surface {
+  font-weight: 600;
+}
+.graph__tip-pos {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.graph__tip-gloss {
+  margin-top: var(--s1);
+  font-family: var(--font-cjk);
+}
+.graph__tip-tags {
+  margin-top: var(--s1);
+  font-size: 0.78rem;
+  color: var(--accent);
 }
 .graph__svg--thumb {
   touch-action: none;
