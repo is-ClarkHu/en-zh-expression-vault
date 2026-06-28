@@ -401,18 +401,21 @@ function dataBar(root) {
 
 export async function mountSettings(root) {
   root.innerHTML = "";
-  root.append(el("h1", null, "Settings"));
+  const page = el("div", "settings"); // centered column (v3 feedback)
+  page.append(el("h1", null, "Settings"));
 
-  root.append(section("Appearance", null, appearanceBar()));
-  root.append(section("Language", null, languageBar()));
-  root.append(section("Providers", "Per-provider keys (stored on-device) and which provider runs each AI scenario.", providersPanel()));
-  root.append(section("Pronunciation", "Choose the en-US voice used to speak expressions.", await pronunciationBar()));
+  page.append(section("Appearance", null, appearanceBar()));
+  page.append(section("Language", null, languageBar()));
+  page.append(section("Providers", "Per-provider keys (stored on-device) and which provider runs each AI scenario.", providersPanel()));
+  page.append(section("Pronunciation", "Choose the en-US voice used to speak expressions.", await pronunciationBar()));
   const organize = section("Organize", "Re-cluster the whole vault into authoritative topic/intent groups, with a preview before anything changes.");
   organize.append(await relatednessDiagnostic());
   organize.append(await reassignBar(root));
-  root.append(organize);
+  page.append(organize);
 
   const sync = section("Sync & data", "Connect Dropbox for two-way sync, or export/import the vault as a single file.", dropboxBar(root));
   sync.append(dataBar(root));
-  root.append(sync);
+  page.append(sync);
+
+  root.append(page);
 }

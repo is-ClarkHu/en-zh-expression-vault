@@ -1,14 +1,15 @@
-// Retrieve (SPEC §6.1, v3 §2d) — the center of gravity, now a two-axis
-// master-detail BROWSER (replacing the flat dropdown / chip cloud):
-//   axis   pick topic / intent / register   (the two-axis space)
-//     └ tag list   that axis's tags, with counts                (jp's "class")
-//         └ card grid   the expressions under the picked tag      (jp's "list")
-// Picking a card opens the shared detail panel (§2b). Reading on/off + shuffle
-// are study affordances ported from jp (§2d). Whatever range is picked here is
-// written to the shared range model (range.js), the same one the graph reads.
+// Retrieve (SPEC §6.1, v3 §2d) — the center of gravity, a two-axis master-detail
+// BROWSER plus a free-text search:
+//   search   type to find expressions across the whole vault (surface/gloss/tags)
+//   axis     pick topic / intent / register   (the two-axis space)
+//     └ tag list   that axis's tags (alphabetical), with counts   (jp's "class")
+//         └ card grid   the expressions under the picked tag        (jp's "list")
+// Picking a card opens the shared detail panel (§2b), with Delete. Reading on/off
+// + shuffle are study affordances (§2d). The picked range feeds range.js (graph).
 
-import { getExpressions, getTags } from "../db/index.js";
+import { getExpressions, getTags, deleteExpression } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
+import { schedulePush } from "../sync/dropbox.js";
 import { openDetail, closeDetail, isDetailOpen } from "../ui/detail-panel.js";
 import { expressionDetail } from "../ui/expression-detail.js";
 import { setRange, rangeExpressions } from "./range.js";
@@ -39,13 +40,23 @@ function shuffle(a) {
 
 export async function mountRetrieve(root) {
   root.innerHTML = "";
-  root.append(el("p", "muted", "Browse by axis → tag → card. Pick a tag to pull its expressions; tap a card for the full detail."));
+  root.append(el("p", "muted", "Search, or browse by axis → tag → card. Tap a card for the full detail."));
 
   let activeAxis = "intent";
   let activeTag = null; // { axis, name } | { register } | null
+  let activeBtn = null;
+  let searchTerm = "";
   let showReading = false;
   let shuffled = false;
   let selectedEl = null;
+
+  // --- search box -----------------------------------------------------------
+  const searchBar = el("div", "retrieve__search");
+  const search = el("input");
+  search.type = "search";
+  search.placeholder = "Search expressions — word, gloss, or tag";
+  searchBar.append(search);
+  root.append(searchBar);
 
   // --- layout: side (axis tabs + tag list) | main (toolbar + card grid) ---
   const browser = el("div", "browser");
@@ -91,33 +102,61 @@ export async function mountRetrieve(root) {
       selectedEl?.classList.remove("grid-card--on");
       selectedEl = card;
       card.classList.add("grid-card--on");
-      openDetail(expressionDetail(expr), {
-        title: expr.surface,
-        onClose: () => { selectedEl?.classList.remove("grid-card--on"); selectedEl = null; },
-      });
+      openCardDetail(expr);
     });
     return card;
+  }
+
+  // Detail panel with a Delete action (v3 §6 — retrieve gets delete too).
+  function openCardDetail(expr) {
+    const body = el("div");
+    body.append(expressionDetail(expr));
+    const del = el("button", "btn btn--ghost", "Delete");
+    del.style.marginTop = "var(--s4)";
+    del.addEventListener("click", async () => {
+      await deleteExpression(expr.id);
+      schedulePush();
+      closeDetail();
+      refresh(); // counts + grid both change after a delete
+    });
+    body.append(del);
+    openDetail(body, {
+      title: expr.surface,
+      onClose: () => { selectedEl?.classList.remove("grid-card--on"); selectedEl = null; },
+    });
   }
 
   async function renderGrid() {
     head.textContent = "";
     grid.innerHTML = "";
-    if (!activeTag) {
+    let rows, label;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      rows = (await getExpressions()).filter((e) =>
+        e.surface.toLowerCase().includes(q) ||
+        (e.gloss_cn || "").toLowerCase().includes(q) ||
+        (e.intent_cn || "").toLowerCase().includes(q) ||
+        (e.topics || []).some((t) => t.toLowerCase().includes(q)) ||
+        (e.intents || []).some((t) => t.toLowerCase().includes(q)));
+      label = `Search “${searchTerm}”`;
+    } else if (activeTag) {
+      rows = await rangeExpressions();
+      label = activeTag.register || activeTag.name;
+    } else {
       grid.append(el("p", "muted", "Pick a tag on the left to see its expressions."));
       return;
     }
-    let rows = await rangeExpressions();
     if (shuffled) rows = shuffle(rows);
-    const label = activeTag.register || activeTag.name;
     head.textContent = `${label} — ${rows.length}`;
     if (!rows.length) {
-      grid.append(el("p", "muted", "Nothing here."));
+      grid.append(el("p", "muted", searchTerm ? "No matches." : "Nothing here."));
       return;
     }
     for (const r of rows) grid.append(gridCard(r));
   }
 
   function selectTag(btn, range, tagState) {
+    activeBtn = btn;
     for (const b of tagList.children) b.classList.toggle("browser__tag--on", b === btn);
     activeTag = tagState;
     setRange(range); // feed the shared range model (graph reads the same)
@@ -129,6 +168,7 @@ export async function mountRetrieve(root) {
   async function renderTags() {
     tagList.innerHTML = "";
     activeTag = null;
+    activeBtn = null;
     grid.innerHTML = "";
     head.textContent = "";
 
@@ -136,18 +176,19 @@ export async function mountRetrieve(root) {
       const all = await getExpressions();
       const counts = Object.fromEntries(REGISTERS.map((r) => [r, 0]));
       for (const e of all) if (e.register in counts) counts[e.register]++;
-      const present = REGISTERS.filter((r) => counts[r] > 0);
+      const present = REGISTERS.filter((r) => counts[r] > 0); // keep the band order
       if (!present.length) return void grid.append(el("p", "muted", "Nothing saved yet."));
       present.forEach((reg, i) => {
         const b = tagButton(reg, counts[reg]);
         b.addEventListener("click", () => selectTag(b, { kind: "register", name: reg }, { register: reg }));
         tagList.append(b);
-        if (i === 0) b.click(); // auto-open the first so the grid is never empty
+        if (i === 0 && !searchTerm) b.click();
       });
       return;
     }
 
-    const tags = (await getTags(activeAxis)).sort((a, b) => b.member_ids.length - a.member_ids.length);
+    // intent / topic — alphabetical (v3 feedback: stable, scannable order)
+    const tags = (await getTags(activeAxis)).sort((a, b) => a.name.localeCompare(b.name));
     if (!tags.length) {
       return void grid.append(el("p", "muted", `No ${activeAxis} tags yet — save some expressions first.`));
     }
@@ -155,7 +196,7 @@ export async function mountRetrieve(root) {
       const b = tagButton(tag.name, tag.member_ids.length);
       b.addEventListener("click", () => selectTag(b, { kind: "tag", axis: activeAxis, name: tag.name }, { axis: activeAxis, name: tag.name }));
       tagList.append(b);
-      if (i === 0) b.click();
+      if (i === 0 && !searchTerm) b.click();
     });
   }
 
@@ -164,6 +205,13 @@ export async function mountRetrieve(root) {
     b.append(el("span", "browser__tag-name", name));
     b.append(el("span", "browser__tag-count", String(count)));
     return b;
+  }
+
+  // Re-render the active view after a mutation (delete): rebuild the tag counts,
+  // or re-run the search.
+  function refresh() {
+    if (searchTerm) renderGrid();
+    else renderTags();
   }
 
   for (const a of AXES) {
@@ -176,6 +224,19 @@ export async function mountRetrieve(root) {
     });
     axisBar.append(b);
   }
+
+  search.addEventListener("input", () => {
+    searchTerm = search.value.trim();
+    if (searchTerm) {
+      for (const b of tagList.children) b.classList.remove("browser__tag--on");
+      renderGrid();
+    } else if (activeBtn) {
+      activeBtn.classList.add("browser__tag--on"); // restore the browsed tag
+      renderGrid();
+    } else {
+      renderTags();
+    }
+  });
 
   shuffleBtn.addEventListener("click", () => {
     shuffled = !shuffled;

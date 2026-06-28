@@ -436,10 +436,14 @@ input[type="radio"] {
   font-weight: 600;
 }
 
-/* Settings page (v3 §8): titled groups, each holding a control bar. */
+/* Settings page (v3 §8): a centered column (title + groups aligned), rather than
+   left-aligned when narrower than the view (v3 feedback). */
+.settings {
+  max-width: 920px;
+  margin: 0 auto;
+}
 .settings__group {
   margin-bottom: var(--s6);
-  max-width: 920px;
 }
 .settings__group > h2 {
   margin-bottom: var(--s2);
@@ -468,8 +472,7 @@ input[type="radio"] {
 .entries {
   display: grid;
   gap: var(--s5);
-  grid-template-columns: 1fr 1fr;
-  max-width: 1080px; /* the capture forms are data entry — don't stretch to full width */
+  grid-template-columns: 1fr 1fr; /* fills the content width; idiomatic spans the row */
 }
 @media (max-width: 720px) {
   .entries {
@@ -683,6 +686,14 @@ input[type="radio"] {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-wash);
+}
+
+/* ============================================================ retrieve search */
+.retrieve__search {
+  margin: var(--s3) 0 var(--s4);
+}
+.retrieve__search input {
+  max-width: 32rem;
 }
 
 /* ============================================================ structure browser (v3 §2d) */

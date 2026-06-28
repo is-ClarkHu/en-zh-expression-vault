@@ -7,7 +7,7 @@
 // The AI fills the semantic fields; the app stamps id / timestamps on Save.
 
 import { callJSON } from "./provider.js";
-import { getTags } from "../db/index.js";
+import { getTags, canonTag } from "../db/index.js";
 
 // The card fields the AI is responsible for. Kept in one place so both prompts
 // describe the same contract (and so the schema can tighten later).
@@ -118,8 +118,8 @@ function normalize(candidates, exampleSrc) {
         sense_key: c.sense_key || null,
         // example_parallel only applies to multi-word items; drop it for bare words
         example_parallel: kind === "word" ? null : c.example_parallel || null,
-        topics: Array.isArray(c.topics) ? c.topics : [],
-        intents: Array.isArray(c.intents) ? c.intents : [],
+        topics: [...new Set((Array.isArray(c.topics) ? c.topics : []).map(canonTag).filter(Boolean))],
+        intents: [...new Set((Array.isArray(c.intents) ? c.intents : []).map(canonTag).filter(Boolean))],
         // related expressions as links, never substitutes (v3 §10). Keep only the
         // three link kinds with a surface; default register/common defensively.
         relations: Array.isArray(c.relations)

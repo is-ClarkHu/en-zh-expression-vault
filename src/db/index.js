@@ -51,10 +51,25 @@ function openDB() {
     req.onerror = () => reject(req.error);
   }).then(async (db) => {
     await migrateLegacy(db);
+    await migrateCanonicalizeTags(db);
     return db;
   });
   return dbPromise;
 }
+
+// Canonical tag token: lowercase, trimmed, spaces/underscores → single hyphen.
+// So "describe-strong", "describe strong", and "Describe-Strong" are ONE tag
+// instead of three near-duplicates (v3 §9 — the real sparsity defect).
+export function canonTag(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+const uniq = (arr) => [...new Set(arr)];
+const canonTags = (arr) => uniq((Array.isArray(arr) ? arr : []).map(canonTag).filter(Boolean));
 
 function reqP(request) {
   return new Promise((resolve, reject) => {
@@ -96,6 +111,41 @@ async function migrateLegacy(db) {
   localStorage.removeItem(LEGACY_KEY);
 }
 
+// One-time pass that canonicalizes every stored expression's tags and rebuilds
+// the tag index, so pre-existing variant tags ("describe strong" / "Describe-
+// Strong") collapse into one (v3 §9). Guarded by a flag so it runs once.
+const CANON_FLAG = "ev-tags-canon-v1";
+async function migrateCanonicalizeTags(db) {
+  if (localStorage.getItem(CANON_FLAG)) return;
+  const tx = db.transaction(["expressions", "tags"], "readwrite");
+  const exprStore = tx.objectStore("expressions");
+  const tagStore = tx.objectStore("tags");
+  const all = await reqP(exprStore.getAll());
+
+  for (const t of await reqP(tagStore.getAll())) tagStore.delete(t.id); // rebuild from scratch
+  const members = new Map(); // `${axis}:${name}` -> { axis, name, set }
+  for (const e of all) {
+    const topics = canonTags(e.topics);
+    const intents = canonTags(e.intents);
+    if (JSON.stringify(topics) !== JSON.stringify(e.topics || []) ||
+        JSON.stringify(intents) !== JSON.stringify(e.intents || [])) {
+      e.topics = topics;
+      e.intents = intents;
+      e.updated_at = Date.now();
+      exprStore.put(e);
+    }
+    for (const [axis, name] of [...topics.map((n) => ["topic", n]), ...intents.map((n) => ["intent", n])]) {
+      const id = `${axis}:${name}`;
+      if (!members.has(id)) members.set(id, { axis, name, set: new Set() });
+      members.get(id).set.add(e.id);
+    }
+  }
+  for (const [id, m] of members)
+    tagStore.put({ id, axis: m.axis, name: m.name, member_ids: [...m.set], prev_tag_id: null, merged_from: null, split_from: null });
+  await txDone(tx);
+  localStorage.setItem(CANON_FLAG, "1");
+}
+
 // Fill in reserved fields so every stored row matches the §2.1 shape.
 function normalizeRow(c) {
   const now = Date.now();
@@ -114,8 +164,8 @@ function normalizeRow(c) {
     example_src: c.example_src ?? "",
     example_parallel: c.example_parallel ?? null,
     example_gen: c.example_gen ?? null,
-    topics: Array.isArray(c.topics) ? c.topics : [],
-    intents: Array.isArray(c.intents) ? c.intents : [],
+    topics: canonTags(c.topics), // canonical tokens so variants don't split (§9)
+    intents: canonTags(c.intents),
     relations: Array.isArray(c.relations) ? c.relations : [], // synonym/antonym/abbreviation links (§10)
     embedding: c.embedding ?? null,
     qa_log: c.qa_log ?? null,
