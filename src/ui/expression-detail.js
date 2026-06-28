@@ -6,7 +6,9 @@
 
 import { speakButton } from "../audio/tts.js";
 import { deepDiveControl } from "./deepdive.js";
-import { setNote } from "../db/index.js";
+import { setNote, getExpressions, saveExpression } from "../db/index.js";
+import { quickLookup } from "../ai/candidate.js";
+import { openDetail } from "./detail-panel.js";
 import { UI } from "./strings.js";
 
 function el(tag, className, text) {
@@ -42,6 +44,74 @@ function noteEditor(expr) {
   return wrap;
 }
 
+// Relation links (SPEC v3 §10): synonym (≈) / antonym (↔) / abbreviation
+// (short·full) rendered as tappable chips that NAVIGATE to the sibling card —
+// never a silent redirect. The more commonly-used form is marked and shown
+// first. Tapping opens the saved sibling, or looks it up (which, per the
+// no-redirect rule, returns that exact surface) and offers to save it.
+function abbrSide(rel, currentSurface) {
+  return rel.surface.length < currentSurface.length ? "short" : "full";
+}
+function relMark(rel, currentSurface) {
+  if (rel.type === "antonym") return "↔";
+  if (rel.type === "abbreviation") return abbrSide(rel, currentSurface);
+  return "≈";
+}
+
+async function navigateRelation(surface) {
+  const all = await getExpressions();
+  const found = all.find((e) => e.surface.toLowerCase() === surface.toLowerCase());
+  if (found) {
+    openDetail(expressionDetail(found), { title: found.surface });
+    return;
+  }
+  // Not in the vault yet — look it up (no-redirect returns this surface) and
+  // present it with a Save, so the link materialises the sibling card.
+  const loading = el("div", "muted", `Looking up “${surface}”…`);
+  openDetail(loading, { title: surface });
+  try {
+    const { candidates } = await quickLookup(surface);
+    const cand = candidates[0];
+    if (!cand) {
+      loading.textContent = `No card returned for “${surface}”.`;
+      return;
+    }
+    const body = el("div");
+    body.append(expressionDetail(cand, { editableNote: false }));
+    const save = el("button", "btn btn--save", "Save to vault");
+    save.addEventListener("click", async () => {
+      save.disabled = true;
+      await saveExpression(cand);
+      save.textContent = "Saved ✓";
+    });
+    body.append(save);
+    openDetail(body, { title: surface });
+  } catch (e) {
+    loading.className = "error";
+    loading.textContent = e?.message === "NO_KEY"
+      ? "Add your provider API key in Capture to look this up."
+      : `Lookup failed: ${e?.message || e}`;
+  }
+}
+
+export function relationLinks(relations, currentSurface) {
+  const wrap = el("div", "detail__relations");
+  wrap.append(el("div", "detail__note-label", "Related"));
+  const row = el("div", "rel-links");
+  const sorted = [...relations].sort((a, b) => (b.common ? 1 : 0) - (a.common ? 1 : 0));
+  for (const rel of sorted) {
+    const chip = el("button", `rel-link rel-link--${rel.type}${rel.common ? " rel-link--common" : ""}`);
+    chip.append(el("span", "rel-link__mark", relMark(rel, currentSurface)));
+    chip.append(el("span", "rel-link__surface", rel.surface));
+    if (rel.register) chip.append(el("span", "rel-link__reg", rel.register));
+    if (rel.common) chip.append(el("span", "rel-link__common", "common"));
+    chip.addEventListener("click", () => navigateRelation(rel.surface));
+    row.append(chip);
+  }
+  wrap.append(row);
+  return wrap;
+}
+
 // Build the full detail body for one expression. `editableNote` defaults on; pass
 // false for transient candidates that aren't in the vault yet.
 export function expressionDetail(expr, { editableNote = true } = {}) {
@@ -67,6 +137,8 @@ export function expressionDetail(expr, { editableNote = true } = {}) {
 
   if (expr.topics?.length) root.append(tagRow("topics", expr.topics));
   if (expr.intents?.length) root.append(tagRow("intents", expr.intents));
+
+  if (expr.relations?.length) root.append(relationLinks(expr.relations, expr.surface));
 
   if (editableNote) root.append(noteEditor(expr));
 

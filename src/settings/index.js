@@ -8,11 +8,12 @@
 //   Sync            Dropbox connect/status + manual export/import
 // Each block reuses the existing control-bar styling for consistency.
 
-import { exportVault, importVault } from "../db/index.js";
+import { exportVault, importVault, getExpressions } from "../db/index.js";
 import { getSettings, setSetting } from "../ai/settings.js";
 import { isConnected, beginAuth, disconnect, syncNow, redirectUri, schedulePush } from "../sync/dropbox.js";
 import { enUSVoices, speak, isSupported as ttsSupported } from "../audio/tts.js";
-import { buildReassignPlan, applyReassignPlan, wordsAddedSince } from "../reassign/index.js";
+import { buildReassignPlan, applyReassignPlan, wordsAddedSince, DEFAULT_THRESHOLD } from "../reassign/index.js";
+import { cosine } from "../reassign/cluster.js";
 import { PROVIDERS, SCENARIOS, EMBED_PROVIDERS } from "../ai/provider.js";
 import { setTheme } from "../ui/theme.js";
 
@@ -170,6 +171,61 @@ async function pronunciationBar() {
   readLabel.append(read, document.createTextNode(" Show reading by default"));
 
   wrap.append(select, rate, test, readLabel);
+  return wrap;
+}
+
+// --- Relatedness diagnostic (v3 §9) ----------------------------------------
+// Tags stay FLAT + multi-tag; sparsity's only real defect is RELATED words
+// landing in different tags. So flag exactly that: pairs whose embeddings are as
+// close as reassign would merge (cosine ≥ DEFAULT_THRESHOLD) yet share no tag on
+// an axis. Singletons on small data are fine and are NOT reported. The fix is the
+// reassign tool right below — reassigning at the same threshold groups them.
+const hasVec = (e) => Array.isArray(e.embedding) && e.embedding.length > 0;
+
+function splitPairs(tagged, field) {
+  const pairs = [];
+  for (let i = 0; i < tagged.length; i++)
+    for (let j = i + 1; j < tagged.length; j++) {
+      const a = tagged[i], b = tagged[j];
+      if (a[field].some((t) => b[field].includes(t))) continue; // already share a tag
+      const s = cosine(a.embedding, b.embedding);
+      if (s >= DEFAULT_THRESHOLD) pairs.push({ a, b, s });
+    }
+  return pairs.sort((x, y) => y.s - x.s);
+}
+
+async function relatednessDiagnostic() {
+  const wrap = el("div", "settings-bar");
+  wrap.append(el("span", "sync-bar__label", "Relatedness"));
+  const all = await getExpressions();
+  const embedded = all.filter(hasVec);
+  if (embedded.length < 2) {
+    wrap.append(el("span", "muted", "Compute embeddings first (run Reassign once, or set an embedding-provider key) to check for split related words."));
+    return wrap;
+  }
+
+  const body = el("div", "providers"); // reuse the full-width stacked block
+  let total = 0;
+  for (const [field, label] of [["topics", "topic"], ["intents", "intent"]]) {
+    const tagged = embedded.filter((e) => e[field]?.length);
+    const pairs = splitPairs(tagged, field);
+    total += pairs.length;
+    if (!pairs.length) continue;
+    body.append(el("h3", null, `${pairs.length} related pair(s) split across ${label}s`));
+    for (const p of pairs.slice(0, 6)) {
+      const row = el("div", "diag__pair");
+      row.append(el("span", "diag__words", `${p.a.surface} ⟷ ${p.b.surface}`));
+      row.append(el("span", "muted", `${label}s: ${(p.a[field] || []).join("/") || "—"} vs ${(p.b[field] || []).join("/") || "—"} · ${p.s.toFixed(2)}`));
+      body.append(row);
+    }
+  }
+
+  if (!total) {
+    wrap.append(el("span", "muted", "No related words are split — the grouping looks healthy. (Singletons on small data are expected and fine.)"));
+    return wrap;
+  }
+  wrap.append(el("span", "muted", `${total} related pair(s) would be grouped by reassign but sit apart now. Run Reassign below to merge them.`));
+  wrap.append(body);
   return wrap;
 }
 
@@ -351,7 +407,10 @@ export async function mountSettings(root) {
   root.append(section("Language", null, languageBar()));
   root.append(section("Providers", "Per-provider keys (stored on-device) and which provider runs each AI scenario.", providersPanel()));
   root.append(section("Pronunciation", "Choose the en-US voice used to speak expressions.", await pronunciationBar()));
-  root.append(section("Organize", "Re-cluster the whole vault into authoritative topic/intent groups, with a preview before anything changes.", await reassignBar(root)));
+  const organize = section("Organize", "Re-cluster the whole vault into authoritative topic/intent groups, with a preview before anything changes.");
+  organize.append(await relatednessDiagnostic());
+  organize.append(await reassignBar(root));
+  root.append(organize);
 
   const sync = section("Sync & data", "Connect Dropbox for two-way sync, or export/import the vault as a single file.", dropboxBar(root));
   sync.append(dataBar(root));

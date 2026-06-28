@@ -424,6 +424,18 @@ input[type="radio"] {
   margin: var(--s2) 0 var(--s3);
 }
 
+/* Relatedness diagnostic pairs (v3 §9). */
+.diag__pair {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding: var(--s1) 0;
+}
+.diag__words {
+  font-weight: 600;
+}
+
 /* Settings page (v3 §8): titled groups, each holding a control bar. */
 .settings__group {
   margin-bottom: var(--s6);
@@ -1087,14 +1099,9 @@ input[type="radio"] {
 /* ============================================================ dashboard */
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   gap: var(--s2);
   margin: var(--s3) 0 var(--s5);
-}
-@media (max-width: 560px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 .stat {
   background: var(--surface);
@@ -1116,6 +1123,42 @@ input[type="radio"] {
 }
 .dash__section {
   margin-bottom: var(--s5);
+}
+.dash__subhead {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: var(--s3) 0 var(--s2);
+}
+/* Proportional stacked bar (register / kind mix). */
+.stacked {
+  display: flex;
+  height: 0.85rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--track);
+}
+.stacked__seg {
+  height: 100%;
+}
+.dash__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-top: var(--s2);
+  font-size: 0.85rem;
+}
+.dash__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+.dash__swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  display: inline-block;
 }
 .bars {
   display: grid;
@@ -1409,6 +1452,56 @@ input[type="radio"] {
 /* Long AI prose in the panel keeps a comfortable measure (v3 §12). */
 .detail-panel .md {
   max-width: var(--reading-max);
+}
+
+/* Relation links (v3 §10): synonym / antonym / abbreviation as tappable chips. */
+.detail__relations {
+  margin-top: var(--s3);
+}
+.rel-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s1);
+}
+.rel-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s1);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: var(--s1) var(--s3);
+  transition: border-color var(--t), background var(--t);
+}
+.rel-link:hover {
+  border-color: var(--accent);
+}
+.rel-link--common {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+.rel-link__mark {
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+.rel-link__surface {
+  font-weight: 600;
+}
+.rel-link__reg {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.rel-link__common {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
 /* ============================================================ rendered Markdown */

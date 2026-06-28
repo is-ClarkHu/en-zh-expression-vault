@@ -116,6 +116,7 @@ function normalizeRow(c) {
     example_gen: c.example_gen ?? null,
     topics: Array.isArray(c.topics) ? c.topics : [],
     intents: Array.isArray(c.intents) ? c.intents : [],
+    relations: Array.isArray(c.relations) ? c.relations : [], // synonym/antonym/abbreviation links (§10)
     embedding: c.embedding ?? null,
     qa_log: c.qa_log ?? null,
     srs_state: c.srs_state ?? null, // lightweight review state (§6.2 review); preserved across re-saves

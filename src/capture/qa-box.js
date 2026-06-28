@@ -14,7 +14,7 @@ import { renderMarkdownInto } from "../ui/markdown.js";
 import { UI } from "../ui/strings.js";
 import { embedExpression } from "../reassign/index.js";
 import { openDetail, closeDetail, isDetailOpen } from "../ui/detail-panel.js";
-import { expressionDetail } from "../ui/expression-detail.js";
+import { expressionDetail, relationLinks } from "../ui/expression-detail.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -50,6 +50,7 @@ function candidateCard(candidate, onSave) {
   if (candidate.example_parallel) card.append(el("div", "candidate__example", `${UI.examplePrefix}${candidate.example_parallel}`));
   if (candidate.topics?.length) card.append(tagRow("topics", candidate.topics));
   if (candidate.intents?.length) card.append(tagRow("intents", candidate.intents));
+  if (candidate.relations?.length) card.append(relationLinks(candidate.relations, candidate.surface));
 
   const save = el("button", "btn btn--save", "Save");
   save.addEventListener("click", async () => {
@@ -300,7 +301,9 @@ function qaEntry(onSave) {
         nodes.push(a);
       }
       if (candidates.length) {
-        nodes.push(el("div", "entry__cards-label", "Keep-worthy:"));
+        nodes.push(el("div", "entry__cards-label", candidates.length > 1
+          ? "Keep-worthy — Save the card(s) you want (e.g. the reusable pattern, the literal phrase, or both):"
+          : "Keep-worthy:"));
         nodes.push(...candidates.map((c) => candidateCard(c, onSave)));
       } else {
         nodes.push(el("p", "muted", "No keep-worthy expression extracted."));

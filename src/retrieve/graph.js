@@ -31,6 +31,7 @@ const REL_STYLE = {
   antonym: { stroke: "#9a6a2f", dash: "5 4" },
   progression: { stroke: "#3a7a52", dash: "1 5" },
   collocation: { stroke: "#6a5a9a", dash: "8 5" },
+  abbreviation: { stroke: "#3a8a8a", dash: "2 3" }, // full ↔ short form (v3 §10b)
 };
 const MAX_LIVE = 150; // above this we skip live O(N²) edges + force layout
 const W = 800, H = 520, PAD = 28;

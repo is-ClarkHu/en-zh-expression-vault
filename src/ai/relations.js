@@ -7,7 +7,7 @@
 
 import { callJSON } from "./provider.js";
 
-export const REL_TYPES = ["synonym", "antonym", "progression", "collocation"];
+export const REL_TYPES = ["synonym", "antonym", "progression", "collocation", "abbreviation"];
 
 // expr: the focus expression. neighbours: [{id, surface, gloss_cn}] (its nearest
 // vault words). Returns [{ to, type, confidence }] for the real relations found.
@@ -21,12 +21,13 @@ export async function findRelations(expr, neighbours) {
 - antonym: opposite meaning
 - progression: same idea at a different intensity or a sequential step (e.g. tired → exhausted)
 - collocation: words that habitually go together
+- abbreviation: the full vs short form of the SAME word (e.g. biceps ↔ bis, session ↔ sesh, repetitions ↔ reps)
 - none: no strong relation
 
 Candidates:
 ${list}
 
-Return ONLY JSON: { "relations": [ { "n": number, "type": "synonym"|"antonym"|"progression"|"collocation"|"none", "confidence": number } ] }`;
+Return ONLY JSON: { "relations": [ { "n": number, "type": "synonym"|"antonym"|"progression"|"collocation"|"abbreviation"|"none", "confidence": number } ] }`;
 
   const data = await callJSON(prompt, { scenario: "deepdive" });
   const out = [];

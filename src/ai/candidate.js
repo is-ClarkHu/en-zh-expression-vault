@@ -22,14 +22,20 @@ const CARD_FIELDS = `{
   "sense_key": string|null, // short disambiguator when the surface is polysemous, e.g. "buff:gym"
   "example_parallel": string|null, // ONLY for kind phrase/pattern: one NEW example reusing the same word/pattern, NOT identical to the source line (scenario may differ); null for a bare word
   "topics": string[],       // topic tags, e.g. ["gym","fitness"]
-  "intents": string[]       // intent tags, e.g. ["describe-strong"]
+  "intents": string[],      // intent tags, e.g. ["describe-strong"]
+  "relations": [            // related EXPRESSIONS shown as tappable links — NEVER substitutes for "surface"
+    { "type": "synonym"|"antonym"|"abbreviation", "surface": string, "register": "slang"|"casual"|"neutral"|"formal"|"academic"|"technical", "common": boolean }
+  ]
 }`;
 
 const RULES = `Rules:
 - Choose the sense that fits the context; for a polyseme give sense_key + the sense-correct gloss/register (e.g. "buff" gym-sense, not game-sense).
 - pos: the part of speech; for a multi-word expression use "phrase" or "pattern" (matching kind).
 - example_parallel: only when kind is "phrase" or "pattern" — write one natural English example that reuses the same structure with DIFFERENT content (e.g. "on his way to get shredded" → "on her way to ace the exam"); it must not repeat the source line. For a bare word, set it to null.
+- kind "pattern": the surface MUST be the abstract, reusable SKELETON with a placeholder, e.g. "engage one's [body part]" — NEVER a concrete sentence. Put a concrete instance with its Chinese in example_parallel, e.g. "engage your core — 收紧核心". The skeleton is the card's identity; the example is just one instance of it.
 - topics/intents: 1-3 short lowercase-kebab tags each, inferred from context. REUSE an existing tag from the list below whenever one genuinely fits (so synonymous concepts share a tag instead of splitting); mint a NEW tag only when none matches. Do not force unrelated items into an existing tag — a new tag, even a one-off, is correct when nothing fits.
+- NEVER substitute the surface: return the card for the EXACT term given, even if a more common or "more correct" form exists (e.g. "knee pit" stays "knee pit" with register casual — do NOT return "back of the knee"). Put any near-meaning or short/long forms in "relations" instead, never by swapping the surface.
+- relations: related expressions the user can jump to — synonym (same meaning), antonym (opposite), or abbreviation (the SAME word's full↔short form, e.g. biceps↔bis, session↔sesh, repetitions↔reps). Give each its register; set "common": true on whichever form people use more in this context. Use [] when there are none.
 - gloss_cn and intent_cn are in Chinese; everything else stays as specified.
 - Respond with ONLY a JSON object. No markdown, no commentary.`;
 
@@ -67,6 +73,7 @@ Their question: ${JSON.stringify(ask || "What does this mean, and what's worth k
 ${existingTags}
 
 ${RULES}
+- If the capture is about HOW A WORD IS USED — a reusable usage pattern (e.g. asking about "engage your core" to learn the "engage + body part" usage) — return TWO candidate cards so the user can choose: (1) an abstract PATTERN card (kind "pattern", surface = the skeleton like "engage one's [body part]", example_parallel = a concrete instance with its Chinese), AND (2) the literal PHRASE card (kind "phrase", surface = the exact phrase). For ordinary captures that are not about a word's reusable usage, just return the normal card(s).
 
 Return: { "answer": string,  // the explanation they read, in Chinese
           "candidates": [ ${CARD_FIELDS}, ... ] }`;
@@ -113,6 +120,18 @@ function normalize(candidates, exampleSrc) {
         example_parallel: kind === "word" ? null : c.example_parallel || null,
         topics: Array.isArray(c.topics) ? c.topics : [],
         intents: Array.isArray(c.intents) ? c.intents : [],
+        // related expressions as links, never substitutes (v3 §10). Keep only the
+        // three link kinds with a surface; default register/common defensively.
+        relations: Array.isArray(c.relations)
+          ? c.relations
+              .filter((r) => r && typeof r.surface === "string" && r.surface.trim())
+              .map((r) => ({
+                type: ["synonym", "antonym", "abbreviation"].includes(r.type) ? r.type : "synonym",
+                surface: r.surface.trim(),
+                register: r.register || null,
+                common: !!r.common,
+              }))
+          : [],
         example_src: exampleSrc,
       };
     });
