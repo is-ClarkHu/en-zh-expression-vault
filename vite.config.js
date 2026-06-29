@@ -11,6 +11,11 @@ export default defineConfig(({ mode }) => {
   const standalone = mode === "standalone";
   return {
     base: "./",
+    // Only the Dropbox app key is read from .env by the app — it is NOT a secret
+    // in the PKCE public-client flow, so it is safe to expose/bundle. LLM keys
+    // are deliberately NOT exposed here: they stay in Settings (on-device) so a
+    // built/deployed bundle can never contain them.
+    envPrefix: ["VITE_", "DROPBOX_APP_KEY"],
     // Pin the dev port so the origin (and thus the Dropbox OAuth redirect URI)
     // stays stable. strictPort fails loudly if 5173 is taken instead of silently
     // drifting to 5174 — which would change the IndexedDB origin and break the

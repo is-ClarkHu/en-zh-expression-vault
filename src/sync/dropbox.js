@@ -17,7 +17,9 @@ const TOKENS_KEY = "ev-dropbox-tokens"; // localStorage: {access_token, refresh_
 const PKCE_KEY = "ev-dropbox-pkce"; // sessionStorage: {verifier, state}
 const VAULT_PATH = "/vault.json"; // relative to the app folder
 
-const appKey = () => getSettings().dropboxAppKey || "";
+// The Dropbox app key isn't a secret (PKCE), so it can come from .env
+// (DROPBOX_APP_KEY) as a fallback — no need to paste it each install.
+const appKey = () => getSettings().dropboxAppKey || import.meta.env.DROPBOX_APP_KEY || "";
 export const redirectUri = () => location.origin + location.pathname;
 
 // --- token storage -----------------------------------------------------------

@@ -103,8 +103,23 @@ for (const v of VIEWS) {
 // auto-sync (full round-trip on a fresh connect, pull-merge otherwise) so you
 // open to the latest. Background sync failures are non-fatal — the app still
 // works offline against local data.
+// Ask the browser to keep our storage (localStorage keys + the IndexedDB vault)
+// instead of evicting it — mobile browsers (esp. iOS Safari) otherwise clear a
+// tab's storage after ~7 days idle, wiping the vault and the saved API key.
+// Best-effort; the surer fix is "Add to Home Screen" (see manifest).
+async function requestPersistentStorage() {
+  try {
+    if (navigator.storage?.persist && !(await navigator.storage.persisted())) {
+      await navigator.storage.persist();
+    }
+  } catch {
+    /* not supported — Add to Home Screen still protects storage on iOS */
+  }
+}
+
 async function init() {
   applyTheme(); // honour the saved appearance choice before first paint
+  requestPersistentStorage(); // best-effort, non-blocking
   let justConnected = false;
   try {
     justConnected = await completeAuthFromRedirect();
