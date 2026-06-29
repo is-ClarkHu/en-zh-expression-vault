@@ -109,18 +109,28 @@ export async function mountReview(root) {
     o.value = v;
     modeSel.append(o);
   }
-  const filter = el("select", "review__filter");
-  const optAll = el("option", null, "All expressions");
-  optAll.value = "";
-  filter.append(optAll);
-  for (const [axis, tags] of [["topic", topicTags], ["intent", intentTags]]) {
+  // Scope filter: pick an axis, THEN a tag — instead of one flat dropdown listing
+  // every topic+intent tag, which only grows (v3 feedback). Each list stays short
+  // and the tag list loads only when an axis is chosen.
+  const scopeSel = el("select");
+  for (const [v, label] of [["", "All expressions"], ["topic", "By topic"], ["intent", "By intent"]]) {
+    const o = el("option", null, label);
+    o.value = v;
+    scopeSel.append(o);
+  }
+  const tagSel = el("select", "review__filter");
+  function fillTags() {
+    tagSel.innerHTML = "";
+    const tags = (scopeSel.value === "topic" ? topicTags : scopeSel.value === "intent" ? intentTags : [])
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
     for (const t of tags) {
-      const o = el("option", null, `${axis}: ${t.name} (${t.member_ids.length})`);
-      o.value = `${axis}:${t.name}`;
-      filter.append(o);
+      const o = el("option", null, `${t.name} (${t.member_ids.length})`);
+      o.value = t.name;
+      tagSel.append(o);
     }
   }
-  controls.append(el("span", "settings-bar__label", "Mode"), modeSel, filter);
+  controls.append(el("span", "settings-bar__label", "Mode"), modeSel, scopeSel, tagSel);
   root.append(controls);
 
   const stage = el("div", "review__stage");
@@ -128,10 +138,9 @@ export async function mountReview(root) {
 
   let teardown = null;
   async function poolFromFilter() {
-    const v = filter.value;
-    if (!v) return getExpressions();
-    const [axis, name] = [v.slice(0, v.indexOf(":")), v.slice(v.indexOf(":") + 1)];
-    return getExpressionsByTag(axis, name);
+    const axis = scopeSel.value;
+    if (!axis || !tagSel.value) return getExpressions();
+    return getExpressionsByTag(axis, tagSel.value);
   }
 
   async function render() {
@@ -139,13 +148,16 @@ export async function mountReview(root) {
     teardown = null;
     stage.innerHTML = "";
     const mode = modeSel.value;
-    filter.style.display = mode === "wrong" ? "none" : "";
+    const showFilter = mode !== "wrong";
+    scopeSel.style.display = showFilter ? "" : "none";
+    tagSel.style.display = showFilter && scopeSel.value ? "" : "none";
     if (mode === "browse") teardown = await renderBrowse(stage, await poolFromFilter());
     else if (mode === "test") teardown = await renderTest(stage, await poolFromFilter());
     else teardown = await renderWrong(stage);
   }
   modeSel.addEventListener("change", render);
-  filter.addEventListener("change", render);
+  scopeSel.addEventListener("change", () => { fillTags(); render(); });
+  tagSel.addEventListener("change", render);
   render();
 }
 

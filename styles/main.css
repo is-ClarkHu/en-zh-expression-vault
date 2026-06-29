@@ -1335,6 +1335,28 @@ input[type="radio"] {
   background: var(--accent-wash);
 }
 
+/* Phone: cards size to their content (the fixed height left big empty gaps in a
+   single column) and run tighter — less whitespace, more cards per screen. */
+@media (max-width: 759px) {
+  .card-grid {
+    gap: var(--s2);
+  }
+  .grid-card {
+    height: auto;
+    padding: var(--s3);
+  }
+  .candidate,
+  .entry {
+    padding: var(--s3);
+  }
+  .candidate__surface {
+    font-size: 1.35rem;
+  }
+  .detail__surface {
+    font-size: 1.4rem;
+  }
+}
+
 /* ============================================================ detail panel / sheet (v3 §2b) */
 .detail-panel__scrim {
   position: fixed;
