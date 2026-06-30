@@ -38,7 +38,9 @@ const uniqueName = (name, used) => {
 export async function wordsAddedSince() {
   const since = getSettings().lastReassignedAt || 0;
   const rows = await getExpressions();
-  return rows.filter((e) => (e.created_at || 0) > since).length;
+  // Proper nouns don't participate in reassign (v4 §1b), so they don't count
+  // toward the "words added since" backlog nudge.
+  return rows.filter((e) => e.kind !== "proper_noun" && (e.created_at || 0) > since).length;
 }
 
 // Compute + store embeddings for any words in `list` missing one. Mutates the
@@ -65,6 +67,7 @@ export async function ensureEmbeddingsFor(list, onStatus) {
 // vector is never recomputed). Best-effort — a missing key / CORS just defers it
 // to the next reassign or graph generate, which fill embeddings on demand.
 export async function embedExpression(expr) {
+  if (expr.kind === "proper_noun") return; // names aren't clustered (v4 §1b) — no vector
   try {
     const [vec] = await embedTexts([wordText(expr)]);
     if (Array.isArray(vec) && vec.length) await setEmbedding(expr.id, vec);

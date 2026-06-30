@@ -14,7 +14,7 @@ import { isConnected, beginAuth, disconnect, syncNow, redirectUri, schedulePush 
 import { enUSVoices, speak, isSupported as ttsSupported } from "../audio/tts.js";
 import { buildReassignPlan, applyReassignPlan, wordsAddedSince, DEFAULT_THRESHOLD } from "../reassign/index.js";
 import { cosine } from "../reassign/cluster.js";
-import { PROVIDERS, SCENARIOS, EMBED_PROVIDERS } from "../ai/provider.js";
+import { PROVIDERS, SCENARIOS, EMBED_PROVIDERS, PRONUNCIATION_PROVIDERS } from "../ai/provider.js";
 import { setTheme } from "../ui/theme.js";
 import sampleVault from "../../data/sample/vault.json"; // small fictional demo vault
 
@@ -108,8 +108,14 @@ function providersPanel() {
   grid.append(el("h3", null, "Routing"));
   const fallback = getSettings().provider || "claude";
   for (const sc of SCENARIOS) {
+    // Pronunciation runs a 2-model consensus over the STRONG providers only, so
+    // its routing offers just those (picking the primary); "" auto-picks the
+    // strongest available. Other scenarios route over all providers (v4 §1c).
+    const isPron = sc.id === "pronunciation";
+    const list = isPron ? PRONUNCIATION_PROVIDERS : PROVIDERS;
+    const dflt = isPron ? "Auto (strongest available)" : `Default (${fallback})`;
     grid.append(
-      routeRow(sc.label, (getSettings().scenarioProvider || {})[sc.id] || "", PROVIDERS, `Default (${fallback})`, (v) => {
+      routeRow(sc.label, (getSettings().scenarioProvider || {})[sc.id] || "", list, dflt, (v) => {
         const cur = getSettings();
         setSetting("scenarioProvider", { ...cur.scenarioProvider, [sc.id]: v });
       }),
@@ -447,7 +453,7 @@ export async function mountSettings(root) {
   page.append(section("Appearance", null, appearanceBar()));
   page.append(section("Language", null, languageBar()));
   page.append(section("Providers", "Per-provider keys (stored on-device) and which provider runs each AI scenario.", providersPanel()));
-  page.append(section("Pronunciation", "Choose the en-US voice used to speak expressions.", await pronunciationBar()));
+  page.append(section("Pronunciation", "Choose the en-US voice used to speak expressions. Names (proper nouns) are spoken from a respelling resolved by a two-model consensus — set its provider under Providers → Routing → Pronunciation (names).", await pronunciationBar()));
   const organize = section("Organize", "Re-cluster the whole vault into authoritative topic/intent groups, with a preview before anything changes.");
   organize.append(rebuildBar(root));
   organize.append(await relatednessDiagnostic());

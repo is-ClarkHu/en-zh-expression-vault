@@ -23,6 +23,11 @@ export const UI = {
   idiomaticButton: "Get idiomatic",
   relatedLabel: "Already saved · same intent",
 
+  // proper nouns (v4 §1)
+  properNounToggle: "Proper noun",
+  properNounHint: "a name (person / brand / company / place) — just how to say it",
+  pronApproximate: "approximate — no single settled US reading",
+
   // detail panel / note (v3 §2b, §6)
   noteLabel: "Note",
   notePlaceholder: "Your own note — when, where, how you'd use it…",

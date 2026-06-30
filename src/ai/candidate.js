@@ -7,6 +7,7 @@
 // The AI fills the semantic fields; the app stamps id / timestamps on Save.
 
 import { callJSON } from "./provider.js";
+import { pronounce } from "./pronounce.js";
 import { getTags, canonTag } from "../db/index.js";
 
 // The card fields the AI is responsible for. Kept in one place so both prompts
@@ -37,6 +38,7 @@ const RULES = `Rules:
 - NEVER substitute the surface: return the card for the EXACT term given, even if a more common or "more correct" form exists (e.g. "knee pit" stays "knee pit" with register casual — do NOT return "back of the knee"). Put any near-meaning or short/long forms in "relations" instead, never by swapping the surface.
 - relations: related expressions the user can jump to — synonym (same meaning), antonym (opposite), or abbreviation (the SAME word's full↔short form, e.g. biceps↔bis, session↔sesh, repetitions↔reps). Give each its register; set "common": true on whichever form people use more in this context. Use [] when there are none.
 - gloss_cn and intent_cn are in Chinese; everything else stays as specified.
+- PROPER NOUNS: if the term is a NAME the user just wants to PRONOUNCE — a person, brand, company, or place (e.g. "Subaru", "De Bruyne" / 德布劳内, "Citadel") — do NOT produce the ordinary card. Produce a proper-noun card instead: { "kind": "proper_noun", "surface": <the name>, "subtype": "person"|"brand"|"company"|"place", "identity": <a short Chinese line of what it is, e.g. "比利时足球运动员" / "日本汽车品牌">, "coarse_tag": <one optional lowercase-kebab context tag like "football"/"cars", or null> }. For a proper-noun card, OMIT gloss_cn/intent_cn/topics/intents/relations/reading and do NOT include any pronunciation field — pronunciation is resolved separately.
 - Respond with ONLY a JSON object. No markdown, no commentary.`;
 
 // Show the model the tags already in the vault so it reuses them rather than
@@ -99,6 +101,24 @@ Return: {
 }`;
 }
 
+// Forced proper-noun prompt (v4 §1a). The user checked the hard-override toggle,
+// so the TYPE is declared — the model must NOT decide whether it's a name (that
+// would re-break the obscure-name case the toggle exists for); it only resolves
+// identity. Even an unrecognized name is treated as a name.
+function properNounPrompt(term) {
+  return `The user has DECLARED that the following is a PROPER NOUN — a name (person, brand, company, or place) they just want to pronounce. This is a HARD declaration: do NOT decide whether it is a proper noun, and do NOT return an ordinary-word card. Even if you don't recognize the name, treat it as a name.
+
+Name: ${JSON.stringify(term)}
+
+Return ONLY JSON: { "candidates": [ {
+  "kind": "proper_noun",
+  "surface": <the name as written>,
+  "subtype": "person"|"brand"|"company"|"place",   // best guess
+  "identity": <a short Chinese line of what/who it is, e.g. "比利时足球运动员" / "日本汽车品牌"; if you don't know it, a brief honest note like "人名（来源不确定）">,
+  "coarse_tag": <one optional lowercase-kebab context tag like "football"/"cars", or null>
+} ] }`;
+}
+
 // Normalize whatever the model returns into clean candidate objects, dropping
 // anything missing a surface. example_src records the raw input that produced it.
 function normalize(candidates, exampleSrc) {
@@ -107,6 +127,30 @@ function normalize(candidates, exampleSrc) {
     .filter((c) => c && typeof c.surface === "string" && c.surface.trim())
     .map((c) => {
       const kind = c.kind || "word";
+      // Proper-noun card (v4 §1b): pronunciation-first, no ordinary-word fields.
+      // `respelling`/`anglicized`/`pron_approximate` are filled later by the
+      // consensus step (fillPronunciations); everything ordinary stays empty so
+      // the name is exempt from tag-clustering.
+      if (kind === "proper_noun") {
+        return {
+          surface: c.surface.trim(),
+          kind: "proper_noun",
+          subtype: ["person", "brand", "company", "place"].includes(c.subtype) ? c.subtype : null,
+          identity: typeof c.identity === "string" && c.identity.trim() ? c.identity.trim() : null,
+          coarse_tag: c.coarse_tag ? canonTag(c.coarse_tag) : null,
+          respelling: null,
+          anglicized: null,
+          pron_approximate: null,
+          reading: null,
+          gloss_cn: "",
+          intent_cn: "",
+          register: null,
+          topics: [],
+          intents: [],
+          relations: [],
+          example_src: exampleSrc,
+        };
+      }
       return {
         surface: c.surface.trim(),
         kind,
@@ -137,21 +181,53 @@ function normalize(candidates, exampleSrc) {
     });
 }
 
+// Fill the respelling on any proper-noun candidates via the strong-model
+// consensus (v4 §1c). Mutates and returns the list; ordinary cards pass through
+// untouched. Runs after the cheap enrich call so detection (cheap) and
+// pronunciation (strong) stay on the right models.
+async function fillPronunciations(candidates) {
+  await Promise.all(
+    candidates
+      .filter((c) => c.kind === "proper_noun")
+      .map(async (c) => {
+        const p = await pronounce(c.surface, c.identity);
+        c.respelling = p.respelling;
+        c.anglicized = p.anglicized;
+        c.pron_approximate = p.approximate;
+      }),
+  );
+  return candidates;
+}
+
+// Forced proper-noun lookup (v4 §1a hard override). Identity runs on the strong
+// pronunciation model (obscure-name identity benefits from it); the consensus
+// step then fills the respelling. `kind` is forced even if the model omits it.
+async function lookupProperNoun(term) {
+  const data = await callJSON(properNounPrompt(term), { scenario: "pronunciation" });
+  const raw = (Array.isArray(data.candidates) ? data.candidates : []).map((c) => ({ ...c, kind: "proper_noun" }));
+  return fillPronunciations(normalize(raw, term));
+}
+
 // Entry A — quick-lookup (§3.1). No conversation; returns { candidates }.
-export async function quickLookup(term) {
+// properNoun=true is the manual hard override (v4 §1a).
+export async function quickLookup(term, { properNoun = false } = {}) {
+  if (properNoun) return { candidates: await lookupProperNoun(term) };
   const data = await callJSON(quickLookupPrompt(term, await existingTagsBlock()), { scenario: "enrich" });
-  return { candidates: normalize(data.candidates, term) };
+  return { candidates: await fillPronunciations(normalize(data.candidates, term)) };
 }
 
 // Entry C — idiomatic (§5). Returns { renderings, candidates }.
-export async function idiomatic(input) {
+// properNoun=true is the manual hard override (v4 §1a): treat the input as a name,
+// no renderings — just the pronunciation card.
+export async function idiomatic(input, { properNoun = false } = {}) {
+  if (properNoun) return { renderings: [], candidates: await lookupProperNoun(input) };
   const data = await callJSON(idiomaticPrompt(input, await existingTagsBlock()), { scenario: "enrich" });
   const renderings = Array.isArray(data.renderings)
     ? data.renderings
         .filter((r) => r && typeof r.en === "string" && r.en.trim())
         .map((r) => ({ en: r.en.trim(), register: r.register || "neutral", note_cn: r.note_cn || null }))
     : [];
-  return { renderings, candidates: normalize(data.candidates, input) };
+  return { renderings, candidates: await fillPronunciations(normalize(data.candidates, input)) };
 }
 
 // Entry B — Q&A (§3.2). Returns { answer, candidates }. Each candidate carries
@@ -161,8 +237,9 @@ export async function askAndExtract(input, ask) {
   const data = await callJSON(askExtractPrompt(input, ask, await existingTagsBlock()), { scenario: "enrich" });
   const answer = typeof data.answer === "string" ? data.answer : "";
   const qa = { q: ask || input, a: answer };
+  const cands = await fillPronunciations(normalize(data.candidates, input));
   return {
     answer,
-    candidates: normalize(data.candidates, input).map((c) => ({ ...c, qa_log: [qa] })),
+    candidates: cands.map((c) => ({ ...c, qa_log: [qa] })),
   };
 }
