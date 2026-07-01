@@ -23,7 +23,14 @@
 
 ## 1 · Timeline (newest first)
 
-### v4 stage — proper nouns
+### v4 stage — proper nouns & corpus scene-tag
+
+#### D-19 · `corpus` scene-tag: a defined-but-unwired stub — completed
+- **Gap:** the `corpus` field (`life` / `toefl` / `gaokao` / `cs` / `interview`) existed in the data model but was a **stub** — enrich's `CARD_FIELDS`/`RULES` never mentioned it (so it was never populated), and Retrieve had no "by corpus" filter axis. Defined, but neither filled nor usable.
+- **Root cause:** the field was specified early (the "one vault, many scenes — filter, don't partition" thesis), but the enrich and retrieve layers were never wired to it.
+- **Decision:** complete it with two small changes — **(a)** add `corpus` to enrich's `CARD_FIELDS`/`RULES` so the AI soft-labels it; **(b)** add a **"By corpus"** filter axis in Retrieve, reusing the existing register-axis rendering. Sequenced after the documentation pass, then implemented.
+- **Why:** it's the last piece of the founding "full-register / multi-scene, sliced by axis not split into libraries" thesis (D-00); low cost; reuses existing UI; leaves the axis ready for when interview/academic capture ramps up. **Not a duplicate of `register`** — register = formality/tone, corpus = scene/purpose (a word can be casual register yet interview corpus).
+- **Status:** **Shipped** — decided-then-deferred until after the docs pass, built right after. Enrich now soft-labels `corpus`; Retrieve has a "By corpus" axis (verified: lists scenes with counts and filters the grid). Completes the v1–v4 design.
 
 #### D-18 · Pronunciation: respelling → plain TTS on a strong model + consensus *(not IPA→SSML)*
 - **Pain:** plain TTS reads names wrong (`De Bruyne`; `Subaru` mis-stressed); the user wants the correct **American** reading.
@@ -196,8 +203,9 @@ Each row is one thread; the IDs are ordered **newest → oldest** to match the t
 | **Positioning / thesis** | D-10 · D-02 · D-00 | reverse-index vault → asking = capturing → English-immersion UI |
 | **Project boundary** | D-01 | independent repo; vendor only generic UI |
 | **Capture & entries** | D-17 · D-14 · D-13 · D-03 · D-02 | two entries + Save-gate → idiomatic 3rd entry → no-redirect → pattern vs literal → proper-noun + hard override |
-| **Data model / card** | D-17 · D-14 · D-11 · D-09 · D-03 · D-02 | `expression` core → `pos`/`example_parallel` → `note` → fixed card → `kind: pattern` → `kind: proper_noun` |
+| **Data model / card** | D-19 · D-17 · D-14 · D-11 · D-09 · D-03 · D-02 | `expression` core → `pos`/`example_parallel` → `note` → fixed card → `kind: pattern` → `kind: proper_noun` → `corpus` scene-tag |
 | **Tags / clustering / reassign** | D-12 · D-04 | reuse-first + word-level reassign → flat + multi-tag (hierarchy rejected) |
+| **Retrieve / browse** | D-19 | `corpus` scene added as a filter axis, joining the intent/topic/register axes that realize the D-00 reverse-index |
 | **Relations / knowledge graph** | D-15 · D-13 | synonym/antonym links → abbreviation as a 3rd relation |
 | **Embeddings & graph rendering** | D-06 | embed via API at save; edges/layout live in-browser |
 | **Providers / AI routing** | D-18 · D-05 | provider list + per-scenario routing → pronunciation routed to a strong model |

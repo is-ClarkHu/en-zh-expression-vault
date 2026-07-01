@@ -10,6 +10,10 @@ import { callJSON } from "./provider.js";
 import { pronounce } from "./pronounce.js";
 import { getTags, canonTag } from "../db/index.js";
 
+// Scene/setting soft-label (D-19) — where the expression lives, distinct from
+// register (tone). The AI picks one of these or null; unknown values are dropped.
+const CORPORA = ["life", "toefl", "gaokao", "cs", "interview"];
+
 // The card fields the AI is responsible for. Kept in one place so both prompts
 // describe the same contract (and so the schema can tighten later).
 const CARD_FIELDS = `{
@@ -20,6 +24,7 @@ const CARD_FIELDS = `{
   "gloss_cn": string,       // concise Chinese gloss
   "intent_cn": string,      // the communicative intent in Chinese, e.g. "形容某人很强壮"
   "register": "slang"|"casual"|"neutral"|"formal"|"academic"|"technical",
+  "corpus": "life"|"toefl"|"gaokao"|"cs"|"interview"|null, // the SCENE/setting the expression lives in; null if none clearly fits — distinct from register
   "sense_key": string|null, // short disambiguator when the surface is polysemous, e.g. "buff:gym"
   "example_parallel": string|null, // ONLY for kind phrase/pattern: one NEW example reusing the same word/pattern, NOT identical to the source line (scenario may differ); null for a bare word
   "topics": string[],       // topic tags, e.g. ["gym","fitness"]
@@ -38,6 +43,7 @@ const RULES = `Rules:
 - NEVER substitute the surface: return the card for the EXACT term given, even if a more common or "more correct" form exists (e.g. "knee pit" stays "knee pit" with register casual — do NOT return "back of the knee"). Put any near-meaning or short/long forms in "relations" instead, never by swapping the surface.
 - relations: related expressions the user can jump to — synonym (same meaning), antonym (opposite), or abbreviation (the SAME word's full↔short form, e.g. biceps↔bis, session↔sesh, repetitions↔reps). Give each its register; set "common": true on whichever form people use more in this context. Use [] when there are none.
 - gloss_cn and intent_cn are in Chinese; everything else stays as specified.
+- corpus: the SCENE/setting the expression belongs to — "life" (everyday), "toefl", "gaokao", "cs" (computer-science/tech), or "interview". This is NOT register: register = formality/tone, corpus = the setting/purpose (a word can be casual register yet interview corpus). Pick the single best-fitting scene, or null if none clearly fits.
 - PROPER NOUNS: if the term is a NAME the user just wants to PRONOUNCE — a person, brand, company, or place (e.g. "Subaru", "De Bruyne" / 德布劳内, "Citadel") — do NOT produce the ordinary card. Produce a proper-noun card instead: { "kind": "proper_noun", "surface": <the name>, "subtype": "person"|"brand"|"company"|"place", "identity": <a short Chinese line of what it is, e.g. "比利时足球运动员" / "日本汽车品牌">, "coarse_tag": <one optional lowercase-kebab context tag like "football"/"cars", or null> }. For a proper-noun card, OMIT gloss_cn/intent_cn/topics/intents/relations/reading and do NOT include any pronunciation field — pronunciation is resolved separately.
 - Respond with ONLY a JSON object. No markdown, no commentary.`;
 
@@ -159,6 +165,7 @@ function normalize(candidates, exampleSrc) {
         gloss_cn: c.gloss_cn || "",
         intent_cn: c.intent_cn || "",
         register: c.register || "neutral",
+        corpus: CORPORA.includes(c.corpus) ? c.corpus : null, // scene soft-label (D-19)
         sense_key: c.sense_key || null,
         // example_parallel only applies to multi-word items; drop it for bare words
         example_parallel: kind === "word" ? null : c.example_parallel || null,

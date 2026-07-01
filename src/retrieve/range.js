@@ -5,6 +5,7 @@
 //   { kind: "all" }                       every expression
 //   { kind: "tag", axis, name }           one topic/intent tag
 //   { kind: "register", name }            one register band
+//   { kind: "corpus", name }              one scene/corpus (life/toefl/… — D-19)
 //   { kind: "recent", n }                 the most-recent N
 //   { kind: "ids", ids, label }           an explicit set (e.g. a lasso patch)
 
@@ -32,6 +33,7 @@ export function rangeLabel(r = current) {
   switch (r.kind) {
     case "tag": return r.name;
     case "register": return r.name;
+    case "corpus": return r.name;
     case "recent": return `Recent ${r.n}`;
     case "ids": return r.label || `${r.ids.length} selected`;
     default: return "All expressions";
@@ -43,6 +45,7 @@ export async function rangeExpressions(r = current) {
   switch (r.kind) {
     case "tag": return getExpressionsByTag(r.axis, r.name);
     case "register": return (await getExpressions()).filter((e) => e.register === r.name);
+    case "corpus": return (await getExpressions()).filter((e) => e.corpus === r.name);
     case "recent": return (await getExpressions()).slice(0, r.n);
     case "ids": {
       const set = new Set(r.ids);

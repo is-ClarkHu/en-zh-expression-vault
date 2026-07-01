@@ -16,6 +16,8 @@ import { setRange, rangeExpressions } from "./range.js";
 import { UI } from "../ui/strings.js";
 
 const REGISTERS = ["slang", "casual", "neutral", "formal", "academic", "technical"];
+// Scene/corpus soft-labels (D-19) — a non-tag filter axis, like register.
+const CORPORA = ["life", "toefl", "gaokao", "cs", "interview"];
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -83,6 +85,7 @@ export async function mountRetrieve(root) {
     { id: "intent", label: "By intent" },
     { id: "topic", label: "By topic" },
     { id: "register", label: "By register" },
+    { id: "corpus", label: "By corpus" },
   ];
 
   // A read-only expression card for the grid; clicking opens the detail panel.
@@ -141,7 +144,7 @@ export async function mountRetrieve(root) {
       label = `Search “${searchTerm}”`;
     } else if (activeTag) {
       rows = await rangeExpressions();
-      label = activeTag.register || activeTag.name;
+      label = activeTag.register || activeTag.corpus || activeTag.name;
     } else {
       grid.append(el("p", "muted", "Pick a tag on the left to see its expressions."));
       return;
@@ -181,6 +184,22 @@ export async function mountRetrieve(root) {
       present.forEach((reg, i) => {
         const b = tagButton(reg, counts[reg]);
         b.addEventListener("click", () => selectTag(b, { kind: "register", name: reg }, { register: reg }));
+        tagList.append(b);
+        if (i === 0 && !searchTerm) b.click();
+      });
+      return;
+    }
+
+    if (activeAxis === "corpus") { // scene axis (D-19) — same shape as register
+      const all = await getExpressions();
+      const counts = Object.fromEntries(CORPORA.map((c) => [c, 0]));
+      for (const e of all) if (e.corpus in counts) counts[e.corpus]++;
+      const present = CORPORA.filter((c) => counts[c] > 0); // keep the defined order
+      if (!present.length)
+        return void grid.append(el("p", "muted", "No corpus/scene labels yet — save some expressions first."));
+      present.forEach((c, i) => {
+        const b = tagButton(c, counts[c]);
+        b.addEventListener("click", () => selectTag(b, { kind: "corpus", name: c }, { corpus: c }));
         tagList.append(b);
         if (i === 0 && !searchTerm) b.click();
       });
