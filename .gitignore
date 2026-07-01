@@ -40,6 +40,8 @@ release/
 # All SPEC-* iteration docs stay out of the public repo (v1, v2, …).
 docs/SPEC-*.md
 SPEC-*.md
+# Raw decision-log draft stays local; the curated docs/DECISION-LOG.md is committed.
+docs/decision_raw_log.md
 
 # --- OS / editor ---
 .DS_Store
