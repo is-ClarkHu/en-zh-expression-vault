@@ -1,21 +1,32 @@
 # Expression Vault
 
 Your private, topic-and-intent-organized vault of English expressions — fed by
-two low-friction capture entries (a quick word-lookup, and a Q&A box for "I
-don't understand this"), and retrievable the moment you next need it. Full
-register spectrum, street slang to academic to technical.
+low-friction capture entries (a quick word-lookup, a Q&A box for "I don't
+understand this", and an idiomatic Chinese→English box), and retrievable the
+moment you next need it. Full register spectrum, street slang to academic to
+technical.
+
+You can read a word fine, yet not recall you can use it in a given situation —
+and you look things up and forget them. Expression Vault makes asking AI the act
+of capturing, and lets you retrieve expressions by what you want to say, not just
+by how they're spelled.
 
 Local-first and privacy-first: your vault lives in your browser; AI keys and any
-sync stay under your own accounts. No ads, no login, no server we run.
+sync stay under your own accounts. No ads, no account required to start, no
+server we run — optional Dropbox sync uses your own account.
 
 ## Features
 
-- **Capture** — two entries, both ending in a one-tap "Save" candidate card:
+- **Capture** — three entries, each ending in a one-tap "Save" candidate card:
   - *Quick-lookup*: type Chinese or English → one filled card (gloss, reading, register, auto-tags).
   - *Q&A*: drop a raw line and ask → AI explains and extracts the keep-worthy expression(s), disambiguating senses (e.g. `buff` gym-sense vs game-sense).
+  - *Idiomatic (Chinese→English)*: type what you mean in Chinese → several natural English renderings + extracted keyword cards.
+  - *Proper nouns*: names/brands/companies/places you can't pronounce (`Subaru`, `De Bruyne`) go through the same entries — auto-detected, or forced with a "proper noun" toggle — producing a simplified, pronunciation-first card with a respelling (e.g. `duh-BROYN`) the browser speaks aloud.
 - **Retrieve** — slice the single vault by **intent** (reverse-search: "describe-strong" → `buff` / `jacked` / `get shredded`), **topic**, or **register**.
-- **Graph** — a 2D map of your vault: nodes placed by embedding similarity, colored by topic, linked by relation edges.
-- **Review** — casual-browse shuffle, tap-to-reveal. No SRS, no scores — memory through use.
+- **Relations** — a card links to related expressions: synonyms (≈), antonyms (↔), and abbreviations (`biceps`↔`bis`, `session`↔`sesh`), shown as tappable links; looking up a form always returns *that* form, never a silent redirect. (Broader progression/collocation links live in the Graph, not on the card.)
+- **Graph** — a 2D map of your vault: nodes placed by embedding similarity, colored by topic, linked by relation edges (incl. progression/collocation).
+- **Review** — lightweight: flip cards, self-test, a wrong-item list, shuffle, and progress, with keyboard shortcuts — but no coercive spaced-repetition (no due-date queue, streaks, or mastery gates). Memory through use.
+- **Pronunciation** — US-accent speech synthesis on any card, a reading toggle in Review, and for names a respelling (e.g. `duh-BROYN`) resolved by a strong model so the browser can say them.
 - **Dashboard** — distributions, tag counts, growth; vault export/import and sync.
 
 ## Tech stack

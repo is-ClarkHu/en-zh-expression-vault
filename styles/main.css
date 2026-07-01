@@ -640,6 +640,47 @@ input[type="radio"] {
   overflow-wrap: anywhere;
 }
 
+/* ===================================================== proper-noun card (v4 §1) */
+/* Pronunciation is the payload: the respelling leads, with the play button; the
+   identity line and an optional "approximate" note sit quietly under it. */
+.proper-noun {
+  margin-top: var(--s2);
+}
+.proper-noun__pron {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.proper-noun__respelling {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.25rem;
+  letter-spacing: 0.01em;
+}
+.proper-noun__approx {
+  margin-top: var(--s1);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+.proper-noun__identity {
+  margin-top: var(--s2);
+  font-family: var(--font-cjk);
+  color: var(--accent);
+}
+/* The manual hard-override toggle (v4 §1a) — deliberately small and quiet; most
+   lookups are ordinary words. */
+.pn-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  margin-top: var(--s2);
+  font-size: 0.76rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
 /* ============================================================ tags / chips */
 /* Quiet by default; the accent only marks the active selection. */
 .tags {
@@ -1333,6 +1374,28 @@ input[type="radio"] {
 .grid-card--on {
   border-color: var(--accent);
   background: var(--accent-wash);
+}
+
+/* Phone: cards size to their content (the fixed height left big empty gaps in a
+   single column) and run tighter — less whitespace, more cards per screen. */
+@media (max-width: 759px) {
+  .card-grid {
+    gap: var(--s2);
+  }
+  .grid-card {
+    height: auto;
+    padding: var(--s3);
+  }
+  .candidate,
+  .entry {
+    padding: var(--s3);
+  }
+  .candidate__surface {
+    font-size: 1.35rem;
+  }
+  .detail__surface {
+    font-size: 1.4rem;
+  }
 }
 
 /* ============================================================ detail panel / sheet (v3 §2b) */

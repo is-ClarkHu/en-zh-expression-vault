@@ -14,7 +14,7 @@ import { renderMarkdownInto } from "../ui/markdown.js";
 import { UI } from "../ui/strings.js";
 import { embedExpression } from "../reassign/index.js";
 import { openDetail, closeDetail, isDetailOpen } from "../ui/detail-panel.js";
-import { expressionDetail, relationLinks } from "../ui/expression-detail.js";
+import { expressionDetail, relationLinks, properNounBody, properNounSpeech } from "../ui/expression-detail.js";
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -30,10 +30,36 @@ function tagRow(label, tags) {
   return row;
 }
 
+// The manual "proper noun" hard-override toggle (v4 §1a). Small and unobtrusive —
+// most lookups are ordinary words; when checked it DECLARES the input a name so
+// even an obscure one the AI's never seen routes to pronunciation handling.
+// Styling is deferred to the v3 design pass; this is the functional control.
+function properNounToggle() {
+  const label = el("label", "pn-toggle");
+  const box = el("input");
+  box.type = "checkbox";
+  label.append(box, el("span", "pn-toggle__text", UI.properNounToggle));
+  label.title = UI.properNounHint;
+  return { node: label, checked: () => box.checked };
+}
+
 // One candidate card with a Save button (§0.2). onSave gets the candidate and
 // is told whether it was the last card so the panel can clear itself.
 function candidateCard(candidate, onSave) {
   const card = el("div", "candidate");
+
+  // Proper-noun card (v4 §1b): pronunciation-first and simplified — surface +
+  // subtype, the respelling/play block, identity line; no gloss/intent/tags.
+  if (candidate.kind === "proper_noun") {
+    const head = el("div", "candidate__head");
+    head.append(el("span", "candidate__surface", candidate.surface));
+    if (candidate.subtype) head.append(el("span", "candidate__pos", candidate.subtype));
+    card.append(head);
+    card.append(properNounBody(candidate));
+    card.append(saveButton(candidate, onSave));
+    return card;
+  }
+
   const head = el("div", "candidate__head");
   head.append(el("span", "candidate__surface", candidate.surface));
   head.append(speakButton(candidate.surface));
@@ -52,6 +78,14 @@ function candidateCard(candidate, onSave) {
   if (candidate.intents?.length) card.append(tagRow("intents", candidate.intents));
   if (candidate.relations?.length) card.append(relationLinks(candidate.relations, candidate.surface));
 
+  card.append(saveButton(candidate, onSave));
+  return card;
+}
+
+// The Save button shared by every candidate card (§0.2). Saves, fires the
+// best-effort embed (a no-op for proper nouns — they're not clustered, v4 §1b),
+// auto-syncs, and lets the panel refresh.
+function saveButton(candidate, onSave) {
   const save = el("button", "btn btn--save", "Save");
   save.addEventListener("click", async () => {
     save.disabled = true;
@@ -66,8 +100,7 @@ function candidateCard(candidate, onSave) {
       save.textContent = "Save failed — retry";
     }
   });
-  card.append(save);
-  return card;
+  return save;
 }
 
 export function mountCapture(root) {
@@ -165,11 +198,20 @@ export function mountCapture(root) {
       const card = el("div", "grid-card");
       const head = el("div", "candidate__head");
       head.append(el("span", "candidate__surface", r.surface));
-      head.append(speakButton(r.surface));
-      if (r.register) head.append(el("span", "candidate__register", r.register));
+      // A proper-noun card speaks its respelling (or the name, if anglicized) and
+      // shows the respelling + identity in place of a gloss (v4 §1b).
+      const isPN = r.kind === "proper_noun";
+      head.append(speakButton(isPN ? properNounSpeech(r) : r.surface));
+      if (!isPN && r.register) head.append(el("span", "candidate__register", r.register));
+      if (isPN && r.subtype) head.append(el("span", "candidate__pos", r.subtype));
       card.append(head);
-      if (r.gloss_cn) card.append(el("div", "candidate__gloss", r.gloss_cn));
-      if (r.intents?.length) card.append(tagRow(null, r.intents));
+      if (isPN) {
+        if (r.respelling) card.append(el("div", "candidate__reading", r.respelling));
+        if (r.identity) card.append(el("div", "candidate__gloss", r.identity));
+      } else {
+        if (r.gloss_cn) card.append(el("div", "candidate__gloss", r.gloss_cn));
+        if (r.intents?.length) card.append(tagRow(null, r.intents));
+      }
       card.addEventListener("click", (e) => {
         if (e.target.closest("button")) return; // let the speak button work
         openExpr(r, card);
@@ -237,8 +279,10 @@ function quickLookupEntry(onSave) {
   input.placeholder = UI.quickLookupPlaceholder;
   const go = el("button", "btn", "Look up");
   go.type = "submit";
+  const pn = properNounToggle();
   form.append(input, go);
   panel.append(form);
+  panel.append(pn.node);
 
   const out = makeOutput();
   panel.append(out.node);
@@ -247,10 +291,10 @@ function quickLookupEntry(onSave) {
     e.preventDefault();
     const term = input.value.trim();
     if (!term) return;
-    out.status("Looking up…");
+    out.status(pn.checked() ? "Resolving name…" : "Looking up…");
     go.disabled = true;
     try {
-      const { candidates } = await quickLookup(term);
+      const { candidates } = await quickLookup(term, { properNoun: pn.checked() });
       if (!candidates.length) return out.status("No candidate returned. Try rephrasing.");
       const nodes = candidates.map((c) => candidateCard(c, onSave));
       const rel = await relatedBlock(candidates);
@@ -333,8 +377,10 @@ function idiomaticEntry(onSave) {
   raw.rows = 2;
   const go = el("button", "btn", UI.idiomaticButton);
   go.type = "submit";
+  const pn = properNounToggle();
   form.append(raw, go);
   panel.append(form);
+  panel.append(pn.node);
 
   const out = makeOutput();
   panel.append(out.node);
@@ -343,10 +389,10 @@ function idiomaticEntry(onSave) {
     e.preventDefault();
     const input = raw.value.trim();
     if (!input) return;
-    out.status("Working…");
+    out.status(pn.checked() ? "Resolving name…" : "Working…");
     go.disabled = true;
     try {
-      const { renderings, candidates } = await idiomatic(input);
+      const { renderings, candidates } = await idiomatic(input, { properNoun: pn.checked() });
       const nodes = [];
       if (renderings.length) {
         const box = el("div", "renderings");

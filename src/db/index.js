@@ -127,6 +127,7 @@ async function rebuildTagIndexOn(db) {
   const members = new Map(); // `${axis}:${name}` -> { axis, name, set<id> }
   const updates = []; // expressions whose stored tokens weren't canonical
   for (const e of all) {
+    if (e.kind === "proper_noun") continue; // names are exempt from tag-clustering (v4 §1b)
     const topics = canonTags(e.topics);
     const intents = canonTags(e.intents);
     if (JSON.stringify(topics) !== JSON.stringify(e.topics || []) ||
@@ -173,11 +174,26 @@ function normalizeRow(c) {
   return {
     id: c.id || crypto.randomUUID(),
     surface: c.surface,
-    kind: c.kind || "word",
+    kind: c.kind || "word", // "word"|"phrase"|"pattern" | "proper_noun" (v4 §1)
     pos: c.pos ?? null,
     reading: c.reading ?? null,
     gloss_cn: c.gloss_cn ?? null,
     intent_cn: c.intent_cn ?? null,
+    // Proper-noun fields (v4 §1b/§1c). Null on ordinary cards. A proper-noun card
+    // is pronunciation-first: `respelling` (plain text like "duh-BROYN", read
+    // straight by the Web Speech API — no IPA/SSML) is the payload, `identity` is
+    // the one "what is it" line, `anglicized` says whether US TTS can read the name
+    // directly (true) or should read the respelling (false). `coarse_tag` is an
+    // optional findable label that, unlike topics/intents, never enters clustering.
+    subtype: c.subtype ?? null, // person|brand|company|place
+    respelling: c.respelling ?? null,
+    identity: c.identity ?? null,
+    anglicized: c.anglicized ?? null,
+    // true when the two strong models disagreed on the reading — the name has no
+    // settled US pronunciation, so the card shows the respelling with a light
+    // "approximate" note (v4 §1c). null/false = consensus-backed or n/a.
+    pron_approximate: c.pron_approximate ?? null,
+    coarse_tag: c.coarse_tag ?? null,
     note: c.note ?? null, // free-text user note (v3 §6), editable in the detail panel
     register: c.register ?? null,
     corpus: c.corpus ?? null,
@@ -344,6 +360,7 @@ export async function applyReassign(axisPlans) {
   // Rewrite each expression's reassigned-axis arrays to its single authoritative
   // class (collapsing the provisional multi-tags); words outside every class go empty.
   for (const e of await reqP(exprStore.getAll())) {
+    if (e.kind === "proper_noun") continue; // names don't participate in reassign (v4 §1b)
     let changed = false;
     for (const axis of Object.keys(axisPlans)) {
       const cls = wordClass[axis].get(e.id);

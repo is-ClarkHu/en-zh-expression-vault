@@ -112,10 +112,56 @@ export function relationLinks(relations, currentSurface) {
   return wrap;
 }
 
+// What a proper-noun card should PRONOUNCE (v4 §1c): an anglicized name reads
+// directly (US TTS already says Subaru/Chevrolet right); an obscure name reads
+// its plain-text respelling (caps→lowercase, hyphens→spaces) so the Web Speech
+// API approximates it — no IPA, no SSML, no cloud TTS. Falls back to the surface
+// when no respelling resolved.
+export function properNounSpeech(expr) {
+  if (expr.anglicized || !expr.respelling) return expr.surface;
+  return expr.respelling.toLowerCase().replace(/-+/g, " ").trim() || expr.surface;
+}
+
+// The pronunciation-first body of a proper-noun card (v4 §1b), shared by the
+// capture candidate card, the recent grid, and this detail view: the respelling
+// is the payload (with the play button), an optional "approximate" note when the
+// strong models didn't reach consensus, one identity line, and the optional
+// coarse context tag (which never enters tag-clustering).
+export function properNounBody(expr) {
+  const wrap = el("div", "proper-noun");
+  const pron = el("div", "proper-noun__pron");
+  pron.append(expr.respelling
+    ? el("span", "proper-noun__respelling", expr.respelling)
+    : el("span", "muted", "pronunciation pending"));
+  pron.append(speakButton(properNounSpeech(expr)));
+  wrap.append(pron);
+  if (expr.pron_approximate)
+    wrap.append(el("div", "proper-noun__approx muted", UI.pronApproximate));
+  if (expr.identity) wrap.append(el("div", "proper-noun__identity", expr.identity));
+  if (expr.coarse_tag) {
+    const t = el("div", "tags");
+    t.append(el("span", "tag", expr.coarse_tag));
+    wrap.append(t);
+  }
+  return wrap;
+}
+
 // Build the full detail body for one expression. `editableNote` defaults on; pass
 // false for transient candidates that aren't in the vault yet.
 export function expressionDetail(expr, { editableNote = true } = {}) {
   const root = el("div", "detail");
+
+  // Proper noun (v4 §1): a simplified, pronunciation-first detail — no gloss,
+  // intent, examples, tags, relations, or usage deep-dive (all noise for a name).
+  if (expr.kind === "proper_noun") {
+    const head = el("div", "detail__head");
+    head.append(el("span", "detail__surface", expr.surface));
+    if (expr.subtype) head.append(el("span", "candidate__pos", expr.subtype));
+    root.append(head);
+    root.append(properNounBody(expr));
+    if (editableNote) root.append(noteEditor(expr));
+    return root;
+  }
 
   const head = el("div", "detail__head");
   head.append(el("span", "detail__surface", expr.surface));

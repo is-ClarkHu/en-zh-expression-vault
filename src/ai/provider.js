@@ -35,12 +35,25 @@ export function providerMeta(id) {
   return PROVIDERS.find((p) => p.id === id) || PROVIDERS[0];
 }
 
+// Strong, English-native-corpus providers eligible for proper-noun pronunciation
+// (v4 §1c). The respelling consensus runs on these only — DeepSeek/Moonshot are
+// excluded because the step-0 test showed them weak on English phonetics
+// (mis-stressing names). Shared by pronounce.js (consensus) and Settings (the
+// pronunciation routing list, so a non-strong provider can't be picked there).
+export const PRONUNCIATION_PROVIDER_IDS = ["claude", "openai", "gemini"];
+export const PRONUNCIATION_PROVIDERS = PROVIDERS.filter((p) => PRONUNCIATION_PROVIDER_IDS.includes(p.id));
+
 // The chat scenarios that route to a provider independently (SPEC v2 §12).
 // Embedding routes via embedProvider (a different, embed-capable list).
 export const SCENARIOS = [
   { id: "enrich", label: "Enrich (capture)" },
   { id: "deepdive", label: "Deep-dive" },
   { id: "reassign", label: "Reassign naming" },
+  // Proper-noun pronunciation (v4 §1c) — must run on a STRONG, English-native
+  // model (verification showed DeepSeek mis-stresses names), so it's routed
+  // separately. The respelling consensus (pronounce.js) picks two strong
+  // providers; this is the primary one.
+  { id: "pronunciation", label: "Pronunciation (names)" },
 ];
 
 // Resolve which provider a call should use: the scenario's pick if set, else the
@@ -112,7 +125,9 @@ async function callProvider(pid, key, model, prompt, { system, maxTokens = 1024 
 // repeated lookup / ask / deep-dive doesn't re-bill the user's key (SPEC §10).
 export async function callText(prompt, opts = {}) {
   const s = getSettings();
-  const pid = resolveProvider(s, opts.scenario);
+  // opts.provider pins a specific provider (used by the pronunciation consensus,
+  // which calls two named strong models); otherwise route by scenario / fallback.
+  const pid = opts.provider || resolveProvider(s, opts.scenario);
   const key = (s.apiKeys && s.apiKeys[pid]) || "";
   if (!key) throw new Error("NO_KEY");
   const model = (s.models && s.models[pid]) || providerMeta(pid).defaultModel;
