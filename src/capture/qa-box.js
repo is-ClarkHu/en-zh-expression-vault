@@ -7,7 +7,7 @@
 import { getSettings, setSetting } from "../ai/settings.js";
 import { PROVIDERS } from "../ai/provider.js";
 import { quickLookup, askAndExtract, idiomatic } from "../ai/candidate.js";
-import { getExpressions, saveExpression, deleteExpression, getExpressionsByTag } from "../db/index.js";
+import { getExpressions, saveExpression, deleteExpression, getExpressionsByTag, findDuplicate } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
 import { schedulePush } from "../sync/dropbox.js";
 import { renderMarkdownInto } from "../ui/markdown.js";
@@ -87,11 +87,26 @@ function candidateCard(candidate, onSave) {
 // auto-syncs, and lets the panel refresh.
 function saveButton(candidate, onSave) {
   const save = el("button", "btn btn--save", "Save");
+  let confirmedDup = false; // second click overrides the "already in vault" warning
   save.addEventListener("click", async () => {
     save.disabled = true;
     try {
+      // Dedup: every capture card has no id, so saveExpression would mint a fresh
+      // UUID and duplicate an existing word. Warn on the first click; a second
+      // click saves anyway (a genuine new sense of the same surface).
+      if (!confirmedDup) {
+        const dup = await findDuplicate(candidate.surface, candidate.sense_key);
+        if (dup) {
+          confirmedDup = true;
+          save.disabled = false;
+          save.classList.add("btn--warn");
+          save.textContent = `“${candidate.surface}” is already in your vault — Save anyway?`;
+          return;
+        }
+      }
       const saved = await saveExpression(candidate);
       embedExpression(saved); // compute this word's vector once (SPEC v2 §11), best-effort
+      save.classList.remove("btn--warn");
       save.textContent = "Saved ✓";
       schedulePush(); // auto-sync if Dropbox connected
       await onSave?.();
