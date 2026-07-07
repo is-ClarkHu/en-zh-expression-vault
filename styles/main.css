@@ -361,6 +361,12 @@ input[type="radio"] {
 .btn--save {
   margin-top: var(--s3);
 }
+/* "already in your vault" warning state on the Save button (dedup, capture §0.2) */
+.btn--warn {
+  background: var(--accent-wash, #f3e6d0);
+  color: var(--ink);
+  border-color: var(--accent, #9a6a2f);
+}
 .btn--ghost {
   color: var(--muted);
   background: transparent;
@@ -1146,6 +1152,84 @@ input[type="radio"] {
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   background: var(--surface);
+}
+
+/* ---------------------------------------------- knowledge-graph layer panel */
+.kg-panel {
+  display: grid;
+  gap: var(--s2);
+  margin: var(--s3) 0;
+  padding: var(--s3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.kg-panel__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+}
+.kg-panel__group + .kg-panel__group {
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--s2);
+}
+.kg-panel__title {
+  min-width: 4rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.kg-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+}
+.kg-panel__sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.kg-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.kg-check input {
+  cursor: pointer;
+}
+/* typed-relation toggles carry the edge's colour so the legend reads off-graph */
+.kg-check--rel {
+  padding-left: 0.85rem;
+  position: relative;
+}
+.kg-check--rel::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 0.6rem;
+  height: 0;
+  border-top: 2px solid var(--rel-color, currentColor);
+}
+.kg-edge-label {
+  font-size: 0.62rem;
+  font-family: var(--font-mono, monospace);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 2.5px;
+  pointer-events: none;
+}
+.kg-word-label {
+  font-size: 0.68rem;
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 2.5px;
+  pointer-events: none;
 }
 
 /* ============================================================ dashboard */

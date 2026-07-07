@@ -262,6 +262,20 @@ export async function getExpressions() {
   return rows.sort((a, b) => b.created_at - a.created_at);
 }
 
+// A capture is a duplicate when the same surface (trimmed, case-insensitive) is
+// already saved under the same sense. sense_key is part of the identity so the
+// two senses of a word can still coexist; null vs null counts as a match. Used
+// by the capture Save button to warn instead of silently minting a second row.
+export async function findDuplicate(surface, sense_key = null) {
+  const key = String(surface || "").trim().toLowerCase();
+  if (!key) return null;
+  const rows = await getExpressions();
+  return rows.find(
+    (r) => String(r.surface || "").trim().toLowerCase() === key &&
+      (r.sense_key ?? null) === (sense_key ?? null),
+  ) || null;
+}
+
 export async function deleteExpression(id) {
   const db = await openDB();
   const tx = db.transaction(["expressions", "tags", "tombstones"], "readwrite");

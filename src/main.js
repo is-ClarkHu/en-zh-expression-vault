@@ -8,6 +8,7 @@
 import { mountCapture } from "./capture/qa-box.js";
 import { mountRetrieve } from "./retrieve/index.js";
 import { mountGraph } from "./retrieve/graph.js";
+import { mountKnowledgeGraph } from "./knowledge/graph.js";
 import { mountReview } from "./review/index.js";
 import { mountDashboard } from "./dashboard/index.js";
 import { mountSettings } from "./settings/index.js";
@@ -21,6 +22,8 @@ const ICONS = {
   retrieve: '<circle cx="10.5" cy="10.5" r="6"/><line x1="15" y1="15" x2="20" y2="20"/>',
   graph:
     '<circle cx="6" cy="7" r="2.2"/><circle cx="18" cy="9" r="2.2"/><circle cx="11" cy="17.5" r="2.2"/><line x1="8" y1="7.8" x2="15.8" y2="8.6"/><line x1="6.8" y1="9" x2="10.1" y2="15.4"/><line x1="12.4" y1="16.1" x2="16.4" y2="10.6"/>',
+  knowledge:
+    '<circle cx="12" cy="12" r="2.6"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><line x1="6.6" y1="7" x2="10" y2="10.6"/><line x1="17.4" y1="7" x2="14" y2="10.6"/><line x1="6.6" y1="17" x2="10" y2="13.4"/><line x1="17.4" y1="17" x2="14" y2="13.4"/>',
   review:
     '<rect x="3.5" y="7" width="13" height="13.5" rx="2.2"/><path d="M8 7V6a2 2 0 0 1 2-2h8.5a2 2 0 0 1 2 2v11.5a2 2 0 0 1-2 2H17"/>',
   dashboard:
@@ -59,6 +62,7 @@ const VIEWS = [
   { id: "capture", label: "Capture", mount: mountCapture },
   { id: "retrieve", label: "Retrieve", mount: mountRetrieve },
   { id: "graph", label: "Graph", mount: mountGraph },
+  { id: "knowledge", label: "Knowledge Graph", mount: mountKnowledgeGraph },
   { id: "review", label: "Review", mount: mountReview },
   { id: "dashboard", label: "Dashboard", mount: mountDashboard },
   { id: "settings", label: "Settings", mount: mountSettings },
