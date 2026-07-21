@@ -6,6 +6,7 @@
 // sidebar at ≥1024px, an off-canvas drawer with a hamburger below it.
 
 import { mountCapture } from "./capture/qa-box.js";
+import { mountTimeline } from "./timeline/index.js";
 import { mountRetrieve } from "./retrieve/index.js";
 import { mountGraph } from "./retrieve/graph.js";
 import { mountKnowledgeGraph } from "./knowledge/graph.js";
@@ -19,6 +20,8 @@ import { completeAuthFromRedirect, isConnected, pullMerge, syncNow } from "./syn
 // set, stroked with currentColor so they inherit the nav's ink/accent state.
 const ICONS = {
   capture: '<path d="M5 19.5h14M7 16l8.5-8.5a1.6 1.6 0 0 0-2.3-2.3L4.7 13.7 4 16.7z"/>',
+  timeline:
+    '<line x1="7" y1="4" x2="7" y2="20"/><circle cx="7" cy="7.5" r="1.8"/><circle cx="7" cy="16.5" r="1.8"/><line x1="11" y1="7.5" x2="19" y2="7.5"/><line x1="11" y1="16.5" x2="17" y2="16.5"/>',
   retrieve: '<circle cx="10.5" cy="10.5" r="6"/><line x1="15" y1="15" x2="20" y2="20"/>',
   graph:
     '<circle cx="6" cy="7" r="2.2"/><circle cx="18" cy="9" r="2.2"/><circle cx="11" cy="17.5" r="2.2"/><line x1="8" y1="7.8" x2="15.8" y2="8.6"/><line x1="6.8" y1="9" x2="10.1" y2="15.4"/><line x1="12.4" y1="16.1" x2="16.4" y2="10.6"/>',
@@ -60,6 +63,7 @@ const toggle = app.querySelector("#nav-toggle");
 
 const VIEWS = [
   { id: "capture", label: "Capture", mount: mountCapture },
+  { id: "timeline", label: "Timeline", mount: mountTimeline },
   { id: "retrieve", label: "Retrieve", mount: mountRetrieve },
   { id: "graph", label: "Graph", mount: mountGraph },
   { id: "knowledge", label: "Knowledge Graph", mount: mountKnowledgeGraph },
