@@ -1751,3 +1751,109 @@ input[type="radio"] {
   border-top: 1px solid var(--hairline);
   margin: 0.8em 0;
 }
+
+/* ============================================================ timeline (v5 §1) */
+/* A vertical journal: a spine down the left, a dot per day, day nodes that expand
+   to that day's cards. Nodes sit to the right of the spine (its line runs through
+   the dot column). */
+.timeline {
+  position: relative;
+  margin-top: var(--s4);
+  max-width: var(--content-max);
+}
+.tl-node {
+  position: relative;
+  padding-left: var(--s6);
+  padding-bottom: var(--s5);
+}
+/* The spine: a hairline through the dot column, drawn per-node so it connects
+   dot to dot and naturally stops after the last day. */
+.tl-node::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 0;
+  width: 1px;
+  background: var(--hairline);
+}
+.tl-node:last-child::before {
+  bottom: auto;
+  height: 14px; /* last node: a short stub, not a line into empty space */
+}
+.tl-node__dot {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--fill);
+  box-sizing: border-box;
+  z-index: 1;
+}
+.tl-node--open .tl-node__dot {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+.tl-node__content {
+  min-width: 0;
+}
+.tl-node__header {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.tl-node__top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+}
+.tl-node__date {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.tl-node__count {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.tl-node__chev {
+  margin-left: auto;
+  color: var(--muted);
+  display: inline-flex;
+  transition: transform var(--t);
+}
+.tl-node--open .tl-node__chev {
+  transform: rotate(90deg);
+}
+.tl-node__header:hover .tl-node__date {
+  color: var(--accent);
+}
+/* Fold the day-summary chip rows tighter than the shared .tags spacing. */
+.tl-node__header .tags {
+  margin-top: var(--s1);
+}
+.tl-chip--more {
+  color: var(--muted);
+}
+.tl-node__preview {
+  margin-top: var(--s2);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.tl-node__preview-words {
+  color: var(--ink);
+  opacity: 0.75;
+}
+.tl-node__grid {
+  margin-top: var(--s4);
+}
