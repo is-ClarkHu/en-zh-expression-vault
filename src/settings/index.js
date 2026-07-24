@@ -8,7 +8,7 @@
 //   Sync            Dropbox connect/status + manual export/import
 // Each block reuses the existing control-bar styling for consistency.
 
-import { exportVault, importVault, getExpressions, rebuildTagIndex } from "../db/index.js";
+import { exportVault, importVault, getExpressions, rebuildTagIndex, spreadCreatedDates } from "../db/index.js";
 import { getSettings, setSetting } from "../ai/settings.js";
 import { isConnected, beginAuth, disconnect, syncNow, redirectUri, schedulePush } from "../sync/dropbox.js";
 import { enUSVoices, speak, isSupported as ttsSupported } from "../audio/tts.js";
@@ -261,6 +261,38 @@ function rebuildBar(root) {
   return wrap;
 }
 
+// --- Timeline: spread migrated cards' dates (v5 §1) -------------------------
+// Older cards imported in one batch share a created_at and pile onto a single
+// day in the Timeline. This one-time action re-spreads them evenly across the
+// last N days, keeping order. Overwrites created_at, so it's confirmed first.
+function spreadDatesBar() {
+  const wrap = el("div", "settings-bar");
+  wrap.append(el("span", "sync-bar__label", "Timeline dates"));
+  wrap.append(el("span", "muted", "Spread existing cards evenly across the last 10 days so the Timeline isn't one lump. Overwrites capture dates — do this once."));
+  const btn = el("button", "btn btn--ghost", "Spread dates over 10 days");
+  const status = el("span", "muted");
+  btn.addEventListener("click", async () => {
+    const count = (await getExpressions()).length;
+    if (!count) { status.textContent = "No cards to spread."; return; }
+    if (!confirm(`Re-date all ${count} cards evenly across the last 10 days? This overwrites their current dates and can't be undone.`)) return;
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = "Spreading…";
+    try {
+      const r = await spreadCreatedDates(10);
+      schedulePush(); // new dates need to sync
+      status.textContent = `Re-dated ${r.updated} cards across ${r.days} days. Open Timeline to see them.`;
+    } catch (e) {
+      status.textContent = `Failed: ${e.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  });
+  wrap.append(btn, status);
+  return wrap;
+}
+
 // --- Organize / reassign ---------------------------------------------------
 async function reassignBar(root) {
   const wrap = el("section", "settings-bar");
@@ -454,6 +486,8 @@ export async function mountSettings(root) {
   page.append(section("Language", null, languageBar()));
   page.append(section("Providers", "Per-provider keys (stored on-device) and which provider runs each AI scenario.", providersPanel()));
   page.append(section("Pronunciation", "Choose the en-US voice used to speak expressions. Names (proper nouns) are spoken from a respelling resolved by a two-model consensus — set its provider under Providers → Routing → Pronunciation (names).", await pronunciationBar()));
+  page.append(section("Timeline", "Give older, batch-imported cards spread-out dates so the Timeline reads as a history.", spreadDatesBar()));
+
   const organize = section("Organize", "Re-cluster the whole vault into authoritative topic/intent groups, with a preview before anything changes.");
   organize.append(rebuildBar(root));
   organize.append(await relatednessDiagnostic());
