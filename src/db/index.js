@@ -293,6 +293,44 @@ export async function getTombstones() {
   return reqP(db.transaction("tombstones").objectStore("tombstones").getAll());
 }
 
+// One-time backfill for the Timeline (v5 §1): older cards were all migrated/
+// imported in one batch, so they share a single created_at and pile onto one day.
+// This re-spreads every card's created_at EVENLY across the last `days` days,
+// keeping the current order (oldest card → oldest day, newest → today) so the
+// timeline reads as a spaced-out history instead of a single lump. Overwrites
+// created_at (real capture times are already lost for these migrated cards) and
+// bumps updated_at so the new dates sync. Within a day, cards are spaced a minute
+// apart from 9am so their order stays stable and distinct.
+export async function spreadCreatedDates(days = 10) {
+  const db = await openDB();
+  const all = await reqP(db.transaction("expressions").objectStore("expressions").getAll());
+  if (!all.length) return { updated: 0, days };
+
+  // Current order = capture order as best we know it (created_at asc, id tiebreak).
+  all.sort((a, b) => (a.created_at || 0) - (b.created_at || 0) || String(a.id).localeCompare(String(b.id)));
+  const n = all.length;
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const now = Date.now();
+
+  const tx = db.transaction("expressions", "readwrite");
+  const store = tx.objectStore("expressions");
+  let prevBucket = -1, pos = 0;
+  all.forEach((e, i) => {
+    // Even fill of buckets 0..days-1 (0 = oldest day) — floor(i*days/n) touches
+    // every bucket even when n < days, so all `days` days get at least a card.
+    const bucket = Math.min(days - 1, Math.floor((i * days) / n));
+    if (bucket !== prevBucket) { pos = 0; prevBucket = bucket; }
+    const dayStartMs = todayStart.getTime() - (days - 1 - bucket) * 86400000;
+    e.created_at = dayStartMs + 9 * 3600000 + pos * 60000; // 9am + pos minutes
+    e.updated_at = now;
+    store.put(e);
+    pos++;
+  });
+  await txDone(tx);
+  return { updated: n, days };
+}
+
 // Append a {q, a} exchange to a saved expression's qa_log (SPEC §4.6 deep-dive).
 // Bumps updated_at so the enriched card syncs.
 export async function appendQaLog(id, entry) {
