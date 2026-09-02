@@ -13,15 +13,19 @@
 // (Anthropic output_config, OpenAI response_format) can be layered on later.
 
 import { getSettings } from "./settings.js";
+import { resolveModel } from "./models.js";
 import { getCached, setCached } from "../db/index.js";
 
+// Which companies we can call. WHICH MODEL of a company a call runs on is not
+// pinned here — each provider exposes five graded tiers (frontier → fastest) in
+// ai/models.js, and the user picks a tier per provider in Settings.
 export const PROVIDERS = [
-  { id: "claude", label: "Claude", defaultModel: "claude-opus-4-8" },
-  { id: "openai", label: "ChatGPT", defaultModel: "gpt-4o" },
-  { id: "gemini", label: "Gemini", defaultModel: "gemini-2.5-pro" },
-  { id: "deepseek", label: "DeepSeek", defaultModel: "deepseek-chat" },
-  { id: "moonshot", label: "Moonshot", defaultModel: "moonshot-v1-32k" },
-  { id: "mistral", label: "Mistral", defaultModel: "mistral-large-latest" },
+  { id: "claude", label: "Claude" },
+  { id: "openai", label: "ChatGPT" },
+  { id: "gemini", label: "Gemini" },
+  { id: "deepseek", label: "DeepSeek" },
+  { id: "moonshot", label: "Moonshot" },
+  { id: "mistral", label: "Mistral" },
 ];
 
 const OPENAI_COMPAT = {
@@ -130,7 +134,9 @@ export async function callText(prompt, opts = {}) {
   const pid = opts.provider || resolveProvider(s, opts.scenario);
   const key = (s.apiKeys && s.apiKeys[pid]) || "";
   if (!key) throw new Error("NO_KEY");
-  const model = (s.models && s.models[pid]) || providerMeta(pid).defaultModel;
+  // opts.model pins an exact id; otherwise the provider's chosen tier decides.
+  const model = opts.model || resolveModel(pid, s);
+  if (!model) throw new Error(`No model set for ${providerMeta(pid).label} — pick a tier in Settings → Providers → Models.`);
 
   const cacheKey = `${pid}:${model}:${opts.system || ""}:${prompt}`;
   const cached = await getCached(cacheKey);

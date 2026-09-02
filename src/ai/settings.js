@@ -7,7 +7,14 @@ const KEY = "ev-settings";
 const DEFAULTS = {
   provider: "claude", // fallback LLM when a scenario has no explicit pick
   apiKeys: {}, // per-provider keys, local only: { claude, openai, deepseek, ... }
-  models: {}, // optional per-provider model overrides
+  models: {}, // optional per-provider model overrides ("Custom…" in Settings)
+  // Model tiers (v5, see ai/models.js): each provider offers five graded slots
+  // instead of one pinned id. `modelTier` is which slot this provider runs on;
+  // `modelCatalog` is the last resolved id per slot ("Update models" writes it,
+  // re-pointing T1 at the current frontier and repairing retired pins).
+  modelTier: {}, // { claude: "t2", ... } → falls back to models.js DEFAULT_TIER
+  modelCatalog: {}, // { claude: { t1: "claude-fable-5", ... }, ... }
+  modelsCheckedAt: {}, // { claude: 1767225600000, ... } last successful update
   // Per-scenario provider routing (SPEC v2 §12): each AI scenario picks its own
   // provider, falling back to `provider` when unset. enrich/reassign want the
   // cheap one, deep-dive the strong one. Embedding has its own setting below.

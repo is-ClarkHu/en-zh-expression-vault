@@ -15,6 +15,7 @@ import { enUSVoices, speak, isSupported as ttsSupported } from "../audio/tts.js"
 import { buildReassignPlan, applyReassignPlan, wordsAddedSince, DEFAULT_THRESHOLD } from "../reassign/index.js";
 import { cosine } from "../reassign/cluster.js";
 import { PROVIDERS, SCENARIOS, EMBED_PROVIDERS, PRONUNCIATION_PROVIDERS } from "../ai/provider.js";
+import { TIERS, catalogFor, tierFor, refreshProvider } from "../ai/models.js";
 import { setTheme } from "../ui/theme.js";
 import sampleVault from "../../data/sample/vault.json"; // small fictional demo vault
 
@@ -128,6 +129,123 @@ function providersPanel() {
   );
 
   wrap.append(grid);
+  return wrap;
+}
+
+// --- Models: five graded tiers per provider (v5) ----------------------------
+// Companies are no longer pinned to one model id. Each exposes T1 Frontier →
+// T5 Fastest, and only T1 tracks the frontier: "Update models" reads every
+// keyed provider's live model list, re-points T1 at the strongest model on
+// offer today, and repairs any lower tier the provider has retired — the
+// stand-in may be a little stronger but never reaches the tier above it.
+// Ranking and repair live in ai/models.js.
+function modelsPanel() {
+  const wrap = el("section", "settings-bar");
+  wrap.append(el("span", "sync-bar__label", "Models"));
+  wrap.append(
+    el("span", "muted", "Five graded models per company. Only the Frontier tier follows new releases; the rest stay put until they're retired."),
+  );
+
+  const grid = el("div", "providers");
+  const report = el("div", "providers");
+  const status = el("span", "muted");
+
+  const lastChecked = () => {
+    const times = Object.values(getSettings().modelsCheckedAt || {}).filter(Boolean);
+    return times.length
+      ? `Last checked ${new Date(Math.max(...times)).toLocaleString()}.`
+      : "Never checked — showing the shipped defaults.";
+  };
+
+  const renderRows = () => {
+    grid.innerHTML = "";
+    for (const p of PROVIDERS) {
+      const s = getSettings();
+      const cat = catalogFor(p.id, s);
+      const custom = ((s.models || {})[p.id] || "").trim();
+
+      const row = el("div", "providers__row");
+      row.append(el("label", "providers__label", p.label));
+
+      const sel = el("select");
+      for (const tier of TIERS) {
+        const id = cat[tier.key];
+        const o = el("option", null, `${tier.label} — ${id || "unavailable"}`);
+        o.value = tier.key;
+        o.disabled = !id; // thin line-ups (DeepSeek) leave slots empty
+        o.title = tier.hint;
+        if (!custom && tier.key === tierFor(p.id, s)) o.selected = true;
+        sel.append(o);
+      }
+      const customOpt = el("option", null, custom ? `Custom — ${custom}` : "Custom…");
+      customOpt.value = "custom";
+      if (custom) customOpt.selected = true;
+      sel.append(customOpt);
+
+      const box = el("input");
+      box.type = "text";
+      box.placeholder = "exact model id";
+      box.value = custom;
+      box.hidden = !custom;
+      box.addEventListener("change", () => {
+        const cur = getSettings();
+        setSetting("models", { ...cur.models, [p.id]: box.value.trim() });
+        renderRows();
+      });
+
+      sel.addEventListener("change", () => {
+        const cur = getSettings();
+        if (sel.value === "custom") {
+          box.hidden = false;
+          box.focus();
+          return;
+        }
+        setSetting("models", { ...cur.models, [p.id]: "" }); // tier wins again
+        setSetting("modelTier", { ...cur.modelTier, [p.id]: sel.value });
+        renderRows();
+      });
+
+      row.append(sel, box);
+      grid.append(row);
+    }
+  };
+
+  const btn = el("button", "btn", "Update models");
+  btn.addEventListener("click", async () => {
+    const keyed = PROVIDERS.filter((p) => (getSettings().apiKeys || {})[p.id]);
+    report.innerHTML = "";
+    if (!keyed.length) {
+      status.textContent = "Add a provider key above first — the model list is read with your own key.";
+      return;
+    }
+    btn.disabled = true;
+    const orig = btn.textContent;
+    for (const p of keyed) {
+      btn.textContent = `Checking ${p.label}…`;
+      let line;
+      try {
+        const { changes, count } = await refreshProvider(p.id);
+        line = changes.length
+          ? `${p.label}: ${changes
+              .map((c) => `${c.tier.toUpperCase()} ${c.from || "—"} → ${c.to || "—"} (${c.reason})`)
+              .join(" · ")}`
+          : `${p.label}: already current (${count} models offered).`;
+      } catch (e) {
+        line = `${p.label}: couldn't check — ${e.message === "NO_KEY" ? "no key" : e.message}`;
+      }
+      report.append(el("div", "muted", line));
+    }
+    const skipped = PROVIDERS.length - keyed.length;
+    if (skipped) report.append(el("div", "muted", `${skipped} provider(s) skipped — no key on file.`));
+    renderRows();
+    status.textContent = lastChecked();
+    btn.disabled = false;
+    btn.textContent = orig;
+  });
+
+  status.textContent = lastChecked();
+  renderRows();
+  wrap.append(btn, status, grid, report);
   return wrap;
 }
 
@@ -452,7 +570,13 @@ export async function mountSettings(root) {
 
   page.append(section("Appearance", null, appearanceBar()));
   page.append(section("Language", null, languageBar()));
-  page.append(section("Providers", "Per-provider keys (stored on-device) and which provider runs each AI scenario.", providersPanel()));
+  const providers = section(
+    "Providers",
+    "Per-provider keys (stored on-device), which provider runs each AI scenario, and which of that provider's five model tiers it runs on.",
+    providersPanel(),
+  );
+  providers.append(modelsPanel());
+  page.append(providers);
   page.append(section("Pronunciation", "Choose the en-US voice used to speak expressions. Names (proper nouns) are spoken from a respelling resolved by a two-model consensus — set its provider under Providers → Routing → Pronunciation (names).", await pronunciationBar()));
   const organize = section("Organize", "Re-cluster the whole vault into authoritative topic/intent groups, with a preview before anything changes.");
   organize.append(rebuildBar(root));

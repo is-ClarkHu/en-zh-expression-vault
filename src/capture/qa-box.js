@@ -6,6 +6,7 @@
 
 import { getSettings, setSetting } from "../ai/settings.js";
 import { PROVIDERS } from "../ai/provider.js";
+import { resolveModel } from "../ai/models.js";
 import { quickLookup, askAndExtract, idiomatic } from "../ai/candidate.js";
 import { getExpressions, saveExpression, deleteExpression, getExpressionsByTag, findDuplicate } from "../db/index.js";
 import { speakButton } from "../audio/tts.js";
@@ -140,16 +141,23 @@ export function mountCapture(root) {
   keyInput.placeholder = UI.apiKeyPlaceholder;
   keyInput.value = (s.apiKeys && s.apiKeys[enrichOf(s)]) || "";
 
+  // Which of that provider's five tiers capture will run on — the tier itself is
+  // chosen in Settings → Providers → Models; this just makes it visible here.
+  const modelNote = el("span", "muted");
+  const showModel = () => (modelNote.textContent = resolveModel(enrichOf(getSettings())) || "no model set");
+
   select.addEventListener("change", () => {
     const cur = getSettings();
     setSetting("scenarioProvider", { ...cur.scenarioProvider, enrich: select.value });
     keyInput.value = (cur.apiKeys && cur.apiKeys[select.value]) || "";
+    showModel();
   });
   keyInput.addEventListener("change", () => {
     const cur = getSettings();
     setSetting("apiKeys", { ...cur.apiKeys, [select.value]: keyInput.value.trim() });
   });
-  bar.append(el("span", "settings-bar__label", UI.enrichProvider), select, keyInput);
+  showModel();
+  bar.append(el("span", "settings-bar__label", UI.enrichProvider), select, keyInput, modelNote);
   root.append(bar);
 
   // --- The three capture entries ---
