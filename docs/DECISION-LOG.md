@@ -23,6 +23,16 @@
 
 ## 1 · Timeline (newest first)
 
+### v5 stage — model tiers
+
+#### D-20 · Five graded model tiers per provider; only the frontier tier auto-updates
+- **Pain:** each company was pinned to one hard-coded model id (`claude-opus-4-8`, `gpt-4o`, …). New releases silently left the app a generation behind, a retired id would just start failing, and there was no way to trade quality for cost/latency within a company without editing source.
+- **Root cause:** the model was provider *metadata* (`PROVIDERS[].defaultModel`), so it could only change by shipping code — the routing layer (D-05, D-18) chose **companies**, never **grades**.
+- **Decision:** every provider exposes **five graded slots** — **T1 Frontier · T2 Flagship · T3 Balanced · T4 Light · T5 Fastest** — picked per provider in Settings (with a `Custom…` escape hatch for an exact id). Only **T1 tracks the frontier**: **"Update models"** reads each keyed provider's live model list with the user's own key and re-points T1 at the strongest model on offer (Fable 5 → Fable 5.1 the day it ships). **T2–T5 stay exactly where they are** while the provider still serves them; a **retired** pin is replaced by the closest still-served model that stays **below the tier above it** — a stand-in may be a little stronger, never a grade jump.
+- **Why:** the grades are deliberately far apart (Claude: `fable` → `haiku`), so choosing a tier is a real quality/latency/price decision rather than a version bump. Ranking is **derived from the live list** (family band + version + size class) instead of a hard-coded table, so a brand-new family resolves without a code change and the shipped catalog is only a starting point. Keeping T2–T5 pinned is what makes them meaningful — an "everything is latest" catalog would collapse five slots into one moving target. Thin line-ups (DeepSeek) leave slots empty rather than inventing ids; the update fills them if the provider ever offers more.
+- **Status:** **Shipped** (v5). Ranking + repair unit-tested (41 cases: new frontier, retired tier, no grade jump, no duplicate pins, non-chat models never pinned); the update path verified end-to-end in a real browser against a **stubbed** model list, so no key was billed.
+- **Refines:** **D-05** — routing still picks the company; the tier picks the model within it.
+
 ### v4 stage — proper nouns & corpus scene-tag
 
 #### D-19 · `corpus` scene-tag: a defined-but-unwired stub — completed
@@ -208,7 +218,7 @@ Each row is one thread; the IDs are ordered **newest → oldest** to match the t
 | **Retrieve / browse** | D-19 | `corpus` scene added as a filter axis, joining the intent/topic/register axes that realize the D-00 reverse-index |
 | **Relations / knowledge graph** | D-15 · D-13 | synonym/antonym links → abbreviation as a 3rd relation |
 | **Embeddings & graph rendering** | D-06 | embed via API at save; edges/layout live in-browser |
-| **Providers / AI routing** | D-18 · D-05 | provider list + per-scenario routing → pronunciation routed to a strong model |
+| **Providers / AI routing** | D-20 · D-18 · D-05 | provider list + per-scenario routing → pronunciation routed to a strong model → five graded model tiers per provider (only the frontier auto-updates) |
 | **Pronunciation** | D-18 · D-17 · D-09 | en-US voice → proper-noun card → respelling + consensus *(IPA→SSML superseded)* |
 | **Sync / storage** | D-07 | Dropbox *(iCloud superseded)* |
 | **Review** | D-11 · D-03 | borrow jp (no coercive SRS) → hotkeys + structure browser |

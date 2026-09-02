@@ -28,6 +28,7 @@ server we run — optional Dropbox sync uses your own account.
 - **Review** — lightweight: flip cards, self-test, a wrong-item list, shuffle, and progress, with keyboard shortcuts — but no coercive spaced-repetition (no due-date queue, streaks, or mastery gates). Memory through use.
 - **Pronunciation** — US-accent speech synthesis on any card, a reading toggle in Review, and for names a respelling (e.g. `duh-BROYN`) resolved by a strong model so the browser can say them.
 - **Dashboard** — distributions, tag counts, growth; vault export/import and sync.
+- **Model tiers** — every provider offers five graded models (Frontier → Fastest) instead of one pinned id; one button re-points the Frontier tier at the newest release and replaces any model the provider has retired.
 
 ## Tech stack
 
@@ -44,6 +45,12 @@ npm run build    # → dist/  (static; deploy anywhere)
 
 Open the app, go to **Capture**, pick a provider and paste your API key (stored
 on-device only), and start saving. Keys never leave your browser.
+
+Each provider offers **five graded models** — *T1 Frontier → T5 Fastest* — chosen
+under **Settings → Providers → Models**. Only the Frontier tier follows new
+releases: **Update models** reads each provider's live model list with your own
+key, re-points T1 at whatever is strongest today, and swaps out any lower tier
+the provider has retired (never promoting it past the tier above).
 
 ## Deploy / self-host
 
