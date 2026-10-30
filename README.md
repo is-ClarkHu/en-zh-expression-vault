@@ -13,18 +13,27 @@ by how they're spelled.
 
 <p align="center">
   <img src="assets/knowledge-graph.png" width="860"
-       alt="Knowledge Graph of the 150-entry demo vault, zoomed in, with word labels, similarity edges and dashed antonym and abbreviation edges">
+       alt="Knowledge Graph of all 150 demo entries: nodes coloured by topic, grey similarity edges, and dashed antonym, dotted abbreviation and solid synonym edges">
 </p>
 
-The Knowledge Graph over all 150 entries of the demo vault, zoomed in on the
-middle (words with no neighbour above the threshold sit around the edge, out of
-frame). Grey lines join words whose embeddings clear a cosine threshold you set
-with a slider. Solid green, dashed brown and dotted teal lines are typed
-relations: synonym, antonym, abbreviation. Colour is the word's first topic tag.
-Two things in this frame are the reason the app is built the way it is:
-`call it a day` and `wrap it up` (and `pull an all-nighter` and `burn the
-midnight oil`) are near-synonyms filed under different topics, and `salty` /
-`salty` (咸, and 酸、不爽) sit right next to each other.
+The Knowledge Graph over all 150 entries of the demo vault. Grey lines join words
+whose embeddings clear a cosine threshold you set with a slider; solid green,
+dashed brown and dotted teal lines are typed relations (synonym, antonym,
+abbreviation). Colour is the word's first topic tag. At this threshold about
+half the words have no neighbour at all, and nearly half of the grey edges join
+two different topics: the vectors and the tags disagree about what belongs
+together.
+
+<p align="center">
+  <img src="assets/knowledge-graph-casual.png" width="760"
+       alt="Knowledge Graph of the 42 casual-register entries with word labels: call it a day and wrap it up joined by a synonym edge across two topics; antonym pairs ace/flunk, buff/scrawny, night owl/early bird, pricey/dirt cheap, splurge/penny-pinch">
+</p>
+
+The same view over the 42 casual-register entries, with labels on. `call it a
+day` (work) and `wrap it up` (meetings) are near-synonyms filed under different
+topics, which is the kind of split the graph is for finding. Each antonym pair
+(`ace` / `flunk`, `night owl` / `early bird`, `pricey` / `dirt cheap`) sits close
+together, because distance measures topic, not polarity.
 
 > **About the data.** Every screenshot and example in this README comes from
 > [`data/sample/vault.json`](data/sample/vault.json), a synthetic demo vault of
@@ -89,7 +98,7 @@ your own keys.
 | **Regroup** (Settings → Organize) | every word on an axis, with its gloss and current tag → one LLM call per axis that assigns each word a group → a diff against the old tags (kept, merged, split, new) shown as a preview | Nothing is written until you apply. A word the model skips keeps a group of its own; a failed naming call falls back to a slug of a member. Two runs over the same vault can differ. |
 | **Relate** (graph detail panel, "Classify visible") | one word plus its 8 nearest neighbours by cosine → the model labels each pair synonym, antonym, progression, collocation, abbreviation or none → typed edges | If the true partner is not among the 8 nearest, it cannot be found. |
 | **Retrieve** (`src/retrieve/index.js`) | an axis value or a search string → cards | Search is substring only (see `熬夜` above). |
-| **Graph** (`src/retrieve/graph.js`, `src/knowledge/graph.js`) | stored vectors → edges at a live cosine threshold plus a force layout, both in the browser | Above 150 nodes both views skip the O(N²) edge and layout pass and fall back to a ring. In the Knowledge Graph, words with no edge drift to the border and pile up there. |
+| **Graph** (`src/retrieve/graph.js`, `src/knowledge/graph.js`) | stored vectors → edges at a live cosine threshold plus a force layout, both in the browser | Above 150 nodes both views skip the O(N²) edge and layout pass and fall back to a ring. Words with no edge have nothing holding them in place; the Knowledge Graph's centring pull is sized against the crowd's repulsion (`src/knowledge/layout.js`) so they stay inside the canvas. |
 | **Sync** (`src/sync/dropbox.js`) | the whole vault as one JSON file, by export/import or Dropbox | Merge is last-write-wins per record. Deletes travel as tombstones, kept 90 days, so a stale copy on another device cannot bring a deleted card back. |
 
 <p align="center">
@@ -132,10 +141,10 @@ top 8 is listed by `python tools/eval_neighbors.py data/sample/vault.json
 
 **Expecting the vector to separate senses.** The text embedded is the English
 surface followed by the Chinese gloss (`src/reassign/index.js:25`). When two
-cards share a surface, as `salty` (咸) and `salty` (酸、不爽) do, they land next to
-each other even though the glosses differ, as the graph above shows; so do the
-two `bass`, `drill` and `merge` cards. Senses are kept apart by `sense_key` on the card, not by the
-embedding.
+cards share a surface, as `salty` (咸) and `salty` (酸、不爽) do, each is the
+other's nearest neighbour even though the glosses differ; so are the two `bass`,
+`drill` and `merge` cards (same `eval_neighbors.py --audit-out` listing). Senses
+are kept apart by `sense_key` on the card, not by the embedding.
 
 **A projection computed outside the app.** The first graph projected exported
 embeddings to 2D with PCA, which meant exporting, running a batch script and
@@ -225,7 +234,7 @@ key.
 | `src/retrieve/`, `src/knowledge/` | Retrieve, Graph, Knowledge Graph |
 | `src/review/`, `src/timeline/`, `src/dashboard/`, `src/settings/` | the remaining views |
 | `src/sync/` | Dropbox PKCE client and merge-on-sync |
-| `tools/` | demo-vault generator, eval scripts |
+| `tools/` | demo-vault generator, eval scripts, Knowledge Graph layout bench |
 | `data/sample/` | the synthetic demo vault |
 | `docs/DECISION-LOG.md` | decisions D-00 to D-20 with the reasoning behind each |
 
