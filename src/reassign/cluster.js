@@ -1,17 +1,14 @@
-// Word-level reassign — the clustering + stability-diff core (SPEC v2 §8).
+// Word-level reassign — the stability-diff core (SPEC v2 §8).
 //
 // The one-click reassign re-derives the AUTHORITATIVE grouping by looking at all
-// expressions at once, per axis (topic / intent). These are pure functions over
-// {id, vec} + the current tags, so the whole restructure can be unit-tested
-// off-DOM and previewed before anything is written.
+// expressions at once, per axis (topic / intent); the grouping itself comes from
+// the LLM (reassign/index.js). These are pure functions over the new clusters +
+// the current tags, so the whole restructure can be unit-tested off-DOM and
+// previewed before anything is written.
 //
-//   clusterByThreshold  group words whose embeddings are near (singletons kept)
-//   planAxis            map the new clusters back onto the old tags, deciding
-//                       kept / merged / split / new, and which need a fresh name
-//
-// "Merge only what's semantically close; never force every word into a class"
-// (SPEC v2 §7/§8): connected-components at a cosine threshold leaves genuinely
-// isolated words as singletons, the way HDBSCAN leaves noise.
+//   cosine     embedding similarity, shared by the graphs + relatedness check
+//   planAxis   map the new clusters back onto the old tags, deciding
+//              kept / merged / split / new, and which need a fresh name
 
 export function cosine(a, b) {
   let dot = 0,
@@ -24,34 +21,6 @@ export function cosine(a, b) {
   }
   if (na === 0 || nb === 0) return 0;
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
-}
-
-// Connected-components over the "cosine ≥ threshold" graph. items: [{id, vec}].
-// Returns clusters as arrays of ids, ordered by their first member's input
-// position so the output is deterministic (→ idempotent re-runs).
-export function clusterByThreshold(items, threshold) {
-  const n = items.length;
-  const parent = Array.from({ length: n }, (_, i) => i);
-  const find = (x) => {
-    while (parent[x] !== x) parent[x] = parent[parent[x]], (x = parent[x]);
-    return x;
-  };
-  const union = (a, b) => {
-    const ra = find(a),
-      rb = find(b);
-    if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb); // keep lower index as root
-  };
-  for (let i = 0; i < n; i++)
-    for (let j = i + 1; j < n; j++)
-      if (cosine(items[i].vec, items[j].vec) >= threshold) union(i, j);
-
-  const groups = new Map();
-  for (let i = 0; i < n; i++) {
-    const r = find(i);
-    if (!groups.has(r)) groups.set(r, []);
-    groups.get(r).push(items[i].id);
-  }
-  return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([, ids]) => ids);
 }
 
 const intersize = (a, setB) => a.reduce((n, id) => n + (setB.has(id) ? 1 : 0), 0);

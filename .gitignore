@@ -23,7 +23,7 @@ data/*
 .env.*
 !.env.example
 
-# --- Python (self-contained venv for tools/recluster.py) ---
+# --- Python (venv for the tools/ scripts) ---
 venv/
 .venv/
 __pycache__/
