@@ -17,7 +17,6 @@ import { cosine } from "../reassign/cluster.js";
 import { PROVIDERS, SCENARIOS, EMBED_PROVIDERS, PRONUNCIATION_PROVIDERS } from "../ai/provider.js";
 import { TIERS, catalogFor, tierFor, refreshProvider } from "../ai/models.js";
 import { setTheme } from "../ui/theme.js";
-import sampleVault from "../../data/sample/vault.json"; // small fictional demo vault
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -542,14 +541,16 @@ function dataBar(root) {
     }
   });
 
-  // Load the small fictional demo vault (data/sample) so a fresh install / the
-  // public demo can show a populated app. Opt-in and non-destructive (merge).
+  // Load the synthetic demo vault (data/sample) so a fresh install / the public
+  // demo can show a populated app. Opt-in and non-destructive (merge). Imported
+  // on demand: its embeddings make it ~2 MB, too heavy for the main bundle.
   const sample = el("button", "btn btn--ghost", "Load sample vault");
   sample.addEventListener("click", async () => {
     const existing = await getExpressions();
-    if (existing.length && !confirm("Merge a small demo vault into your data?")) return;
+    if (existing.length && !confirm("Merge the 150-entry demo vault into your data?")) return;
     sample.disabled = true;
     try {
+      const { default: sampleVault } = await import("../../data/sample/vault.json");
       await importVault(sampleVault);
       alert(`Loaded ${sampleVault.expressions.length} sample expressions — explore Retrieve, Review, Graph.`);
     } catch (e) {
