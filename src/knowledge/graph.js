@@ -18,6 +18,7 @@ import { cosine } from "../reassign/cluster.js";
 import { ensureEmbeddingsFor } from "../reassign/index.js";
 import { findRelations, REL_TYPES } from "../ai/relations.js";
 import { UI } from "../ui/strings.js";
+import { W, H, seedLayout, stepSim, ringLayout } from "./layout.js";
 
 const REGISTERS = ["slang", "casual", "neutral", "formal", "academic", "technical"];
 const PALETTE = [
@@ -32,7 +33,6 @@ const REL_STYLE = {
   abbreviation: { stroke: "#3a8a8a", dash: "2 3" },
 };
 const MAX_LIVE = 150; // above this we skip the O(N²) sim and fall back to a ring
-const W = 800, H = 520, PAD = 28;
 
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
@@ -55,65 +55,6 @@ function computeEdges(items, threshold) {
       if (s >= threshold) edges.push({ a: i, b: j, w: s });
     }
   return edges;
-}
-
-// One-shot Fruchterman–Reingold, used only to SEED the live sim with a sane
-// starting layout (a cold start from random positions looks chaotic).
-function seedLayout(n, edges, iterations = 120) {
-  const pos = Array.from({ length: n }, () => ({
-    x: (Math.random() - 0.5) * W * 0.5 + W / 2,
-    y: (Math.random() - 0.5) * H * 0.5 + H / 2,
-  }));
-  const sim = { n, edges, pos, fixed: new Set(), alpha: 1, k: Math.sqrt((W * H) / Math.max(1, n)) };
-  for (let i = 0; i < iterations; i++) { stepSim(sim); sim.alpha *= 0.99; }
-  return pos;
-}
-
-// A single tick of the live simulation. Same forces as seedLayout, but pulled
-// out so the rAF loop and the seed share one implementation. `fixed` nodes (the
-// one you're dragging) don't move; `alpha` is the temperature we reheat on drag.
-// Long-range repulsion is capped past DMAX: FR's 1/d push is unbounded, so
-// disconnected clusters (words in different topics share no edge) otherwise fly
-// apart until they jam into the walls. Capping lets clusters separate at medium
-// range while gravity keeps the whole cloud centered and on-screen.
-const DMAX = 300;
-
-function stepSim(sim) {
-  const { pos, edges, fixed, n, k } = sim;
-  const disp = pos.map(() => ({ x: 0, y: 0 }));
-  for (let i = 0; i < n; i++)
-    for (let j = i + 1; j < n; j++) {
-      let dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y;
-      let d = Math.hypot(dx, dy) || 0.01;
-      if (d > DMAX) continue;
-      const rep = (k * k) / d, ux = dx / d, uy = dy / d;
-      disp[i].x += ux * rep; disp[i].y += uy * rep;
-      disp[j].x -= ux * rep; disp[j].y -= uy * rep;
-    }
-  for (const e of edges) {
-    let dx = pos[e.a].x - pos[e.b].x, dy = pos[e.a].y - pos[e.b].y;
-    let d = Math.hypot(dx, dy) || 0.01;
-    const att = (d * d) / k, ux = dx / d, uy = dy / d;
-    disp[e.a].x -= ux * att; disp[e.a].y -= uy * att;
-    disp[e.b].x += ux * att; disp[e.b].y += uy * att;
-  }
-  const max = 12 * sim.alpha + 1;
-  for (let i = 0; i < n; i++) {
-    if (fixed.has(i)) continue;
-    disp[i].x += (W / 2 - pos[i].x) * 0.03; // gravity keeps the cloud centered
-    disp[i].y += (H / 2 - pos[i].y) * 0.03;
-    const sp = Math.hypot(disp[i].x, disp[i].y) || 0.01;
-    const s = (Math.min(sp, max) / sp) * sim.alpha; // cooling → smaller steps → settles
-    pos[i].x = Math.max(PAD, Math.min(W - PAD, pos[i].x + disp[i].x * s)); // clamp = safety net
-    pos[i].y = Math.max(PAD, Math.min(H - PAD, pos[i].y + disp[i].y * s));
-  }
-}
-
-function ringLayout(n) {
-  return Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2;
-    return { x: W / 2 + Math.cos(a) * (W / 2 - PAD), y: H / 2 + Math.sin(a) * (H / 2 - PAD) };
-  });
 }
 
 // A previous mount's rAF loop must be stopped when we re-enter the view, or it

@@ -157,7 +157,7 @@ async function upload(obj, rev) {
 // Two-way sync: pull remote → merge into local (per-record add/edit/delete
 // last-write-wins, SPEC §7) → push the merged local back, only if the remote
 // rev is unchanged. If a concurrent write bumped the rev, re-pull/merge/push
-// once. Tags/edges are coarse-merged (recluster.py regenerates them anyway).
+// once. Tags are rebuilt from the merged expressions; edges are upserted.
 export async function syncNow() {
   for (let attempt = 0; attempt < 2; attempt++) {
     const { data, rev } = await download();

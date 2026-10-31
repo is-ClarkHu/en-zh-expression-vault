@@ -4,8 +4,8 @@
 //   expressions  §2.1  the core object (stable id + updated_at for §7 sync merge)
 //   tags         §2.2  the organization layer, maintained live on save/delete so
 //                      intent reverse-search (§6.1) works on the first word
-//   edges        §2.3  knowledge-graph layer — store reserved; AI populates it
-//                      later (and recluster.py refreshes it). Not written yet.
+//   edges        §2.3  knowledge-graph layer — typed AI relations, written by
+//                      "Find relations" in the graph views
 //
 // Tags are keyed by `${axis}:${name}` so live upsert needs no lookup. Embedding,
 // qa_log, example_gen, corpus, srs_state are reserved on the row (SPEC §2.1) for
@@ -113,7 +113,7 @@ async function migrateLegacy(db) {
 
 // Rebuild the WHOLE tag index from the expressions (the source of truth), and
 // canonicalize each expression's tag tokens while we're at it. The derived tag
-// store can drift out of sync (a stale import / recluster, or a partial write),
+// store can drift out of sync (a stale import, or a partial write),
 // leaving a tag with fewer member_ids than the expressions that actually carry
 // it — e.g. 7 words tagged "describe-strong" but the tag listing only 1. This
 // recomputes it from scratch so the index always matches the data (v3 §9).
@@ -236,7 +236,7 @@ async function indexTags(tx, expr, dir) {
       axis,
       name,
       member_ids: [...members],
-      prev_tag_id: existing?.prev_tag_id ?? null, // recluster lineage (§2.2)
+      prev_tag_id: existing?.prev_tag_id ?? null, // reassign lineage (§2.2)
       merged_from: existing?.merged_from ?? null,
       split_from: existing?.split_from ?? null,
     });
@@ -488,8 +488,23 @@ export async function exportVault() {
 // wins, and a delete propagates (and isn't resurrected by a stale copy).
 // Edges are coarse-replaced from the incoming file, but the TAG index is rebuilt
 // from the merged expressions afterwards rather than trusted from the file — a
-// stale/inconsistent tag set in an export (or from recluster) must not poison the
+// stale/inconsistent tag set in an export must not poison the
 // local index (this was the source of out-of-sync member counts).
+// TEMPORARY — remove (with the filter + warnings in importVault) once the
+// Dropbox vault.json has been overwritten by a clean push. The retired
+// tools/recluster.py wrote cosine pairs as `${from}~${to}` "synonym" edges;
+// this keeps any copy of them in an older vault.json from being re-imported.
+function isRetiredCosineEdge(e) {
+  return (
+    typeof e.id === "string" &&
+    e.id === `${e.from_id}~${e.to_id}` &&
+    e.id.split("~").length === 2 &&
+    e.type === "synonym" &&
+    e.source === "ai" &&
+    Object.keys(e).sort().join(",") === "confidence,from_id,id,source,to_id,type"
+  );
+}
+
 export async function importVault(data) {
   const db = await openDB();
   const tx = db.transaction(["expressions", "tags", "edges", "tombstones"], "readwrite");
@@ -517,7 +532,14 @@ export async function importVault(data) {
     if (!localTomb || delT >= localTomb.deleted_at) tombStore.put({ id, deleted_at: delT });
   }
 
-  for (const edge of data.edges || []) tx.objectStore("edges").put(edge);
+  let dropped = 0, offShape = 0;
+  for (const edge of data.edges || []) {
+    if (isRetiredCosineEdge(edge)) { dropped++; continue; }
+    if (String(edge.id).split("~").length === 2 && Object.keys(edge).length !== 6) offShape++;
+    tx.objectStore("edges").put(edge);
+  }
+  if (dropped) console.warn(`[importVault] dropped ${dropped} retired recluster cosine edge(s)`);
+  if (offShape) console.warn(`[importVault] ${offShape} two-part-id edge(s) with ≠6 fields imported as-is — fingerprint may be incomplete`);
 
   // Prune deletion markers past the retention window so they don't grow forever.
   const cutoff = Date.now() - TOMBSTONE_TTL;
